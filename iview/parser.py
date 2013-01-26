@@ -1,6 +1,6 @@
 import comm
 import config
-from BeautifulSoup import BeautifulStoneSoup
+from bs4 import BeautifulSoup
 try:
 	import json
 except ImportError:
@@ -14,7 +14,7 @@ def parse_config(soup):
 
 	soup = soup.replace('&amp;', '&#38;')
 
-	xml = BeautifulStoneSoup(soup)
+	xml = BeautifulSoup(soup)
 
 	# should look like "rtmp://cp53909.edgefcs.net/ondemand"
 	# Looks like the ABC don't always include this field.
@@ -38,7 +38,7 @@ def parse_auth(soup):
 		token, and whether the connection is unmetered.
 	"""
 
-	xml = BeautifulStoneSoup(soup)
+	xml = BeautifulSoup(soup)
 
 	# should look like "rtmp://203.18.195.10/ondemand"
 	rtmp_url = xml.find('server').string
@@ -143,7 +143,7 @@ def parse_captions(soup):
 	"""	Converts custom iView captions into SRT format, usable in most
 		decent media players.
 	"""
-	xml = BeautifulStoneSoup(soup)
+	xml = BeautifulSoup(soup)
 
 	output = u''
 
