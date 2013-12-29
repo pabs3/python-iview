@@ -225,3 +225,22 @@ def http_get(session, url, types=None, *, headers=dict(), **kw):
     except:
         response.close()
         raise
+
+def encodeerrors(text, textio, errors="replace"):
+    """Prepare a string with a fallback encoding error handler
+    
+    If the string is not encodable to the output stream,
+    the string is passed through a codec error handler."""
+    
+    encoding = getattr(textio, "encoding", None)
+    if encoding is None:
+        # TextIOBase, and therefore StringIO, etc,
+        # have an "encoding" attribute,
+        # despite not doing any encoding
+        return text
+    
+    try:
+        text.encode(encoding, textio.errors or "strict")
+    except UnicodeEncodeError:
+        text = text.encode(encoding, errors).decode(encoding)
+    return text
