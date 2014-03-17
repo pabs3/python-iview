@@ -5,6 +5,12 @@ from io import SEEK_CUR
 import urllib.request
 from http.client import HTTPConnection
 import http.client
+from errno import EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET
+
+try:  # Python 3.3
+    ConnectionError
+except NameError:  # Python < 3.3
+    ConnectionError = ()
 
 def xml_text_elements(parent, namespace=""):
 	"""Extracts text from Element Tree into a dict()
@@ -151,26 +157,56 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
         
         headers = dict(req.header_items())
         try:
-            return self._openattempt(req, headers)
-        except http.client.BadStatusLine as err:
-            # If the server closed the connection before receiving this
-            # request, the "http.client" module raises an exception with the
-            # "line" attribute set to repr("")!
-            if err.line != repr(""):
+            response = self._openattempt(req, headers)
+        except (ConnectionError, http.client.BadStatusLine,
+        EnvironmentError) as err:
+            # If the server closed the connection,
+            # by calling close() or shutdown(SHUT_WR),
+            # before receiving a short request (<= 1 MB),
+            # the "http.client" module raises a BadStatusLine exception
+            # with the "line" attribute set to repr("")!
+            # 
+            # To produce EPIPE:
+            # 1. server: close() or shutdown(SHUT_RDWR)
+            # 2. client: send(large request >> 1 MB)
+            # 
+            # ENOTCONN probably not possible with current Python,
+            # but could be generated on Linux by:
+            # 1. server: close() or shutdown(SHUT_RDWR)
+            # 2. client: send(finite data)
+            # 3. client: shutdown()
+            # ENOTCONN not covered by ConnectionError even in Python 3.3.
+            # 
+            # To produce ECONNRESET:
+            # 1. client: send(finite data)
+            # 2. server: close() without reading all data
+            # 3. client: send()
+            connerrnos = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
+            if not any((
+                isinstance(err, http.client.BadStatusLine) and
+                    err.line == repr(""),
+                isinstance(err, ConnectionError),
+                isinstance(err, EnvironmentError) and
+                    err.errno in connerrnos,
+            )):
                 raise
-        self._connection.close()
-        return self._openattempt(req, headers)
+            idempotents = {
+                "GET", "HEAD", "PUT", "DELETE", "TRACE", "OPTIONS"}
+            if req.get_method() not in idempotents:
+                raise
+            
+            self._connection.close()
+            response = self._openattempt(req, headers)
+        
+        # Odd impedance mismatch between "http.client" and "urllib.request"
+        response.msg = response.reason
+        return response
     
     def _openattempt(self, req, headers):
         """Attempt a request using any existing connection"""
         self._connection.request(req.get_method(), req.selector, req.data,
             headers)
-        response = self._connection.getresponse()
-        
-        # Odd impedance mismatch between "http.client" and "urllib.request"
-        response.msg = response.reason
-        
-        return response
+        return self._connection.getresponse()
     
     def close(self):
         if self._connection:
