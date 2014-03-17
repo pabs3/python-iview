@@ -134,6 +134,9 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
         response.read()
     
     connection.close()  # Frees socket
+    
+    Currently does not reuse an existing connection if
+    two host names happen to resolve to the same Internet address.
     """
     
     def __init__(self, *pos, **kw):
