@@ -25,7 +25,7 @@ class TestCli(TestCase):
             def get_captions(url):
                 return "dummy captions"
         
-        with substattr(self.iview_cli.iview, "comm", comm), \
+        with substattr(self.iview_cli.iview, comm), \
         substattr(self.iview_cli, "stderr", StringIO()), \
         TemporaryDirectory(prefix="python-iview.") as dir:
             output = os.path.join(dir, "programme.srt")
