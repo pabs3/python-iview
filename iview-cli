@@ -2,8 +2,14 @@
 
 import sys, os, argparse
 import os.path
+import iview.fetch
+import iview.comm
+from urllib.error import HTTPError
 import iview.config
 import configparser
+from errno import EPIPE
+from sys import stderr
+import urllib.parse
 
 def config():
 	try:
@@ -16,7 +22,7 @@ Please make sure you are connected to the Internet.
 If iView works fine in your web browser, the iView API has possibly changed.
 Try to find an updated version of this program or contact the author.
 
-Debug: could not load URL {}""".format(error.url), file=sys.stderr)
+Debug: could not load URL {}""".format(error.url), file=stderr)
 		sys.exit(1)
 
 def programme():
@@ -65,12 +71,17 @@ def print_auth():
 	config()
 	auth = iview.comm.get_auth()
 	print('iView auth data:')
-	print('\tStreaming Host:', auth['host'])
-	print('\tRTMP Token:', auth['token'])
-	print('\tHDS Token:', auth['tokenhd'])
-	print('\tServer URL:', auth['server'])
-	print('\tPlaypath Prefix:', auth['playpath_prefix'])
-	print('\tUnmetered:', auth['free'])
+	for (desc, key) in (
+		('Streaming Host', 'host'),
+		('RTMP Token', 'token'),
+		('HDS Token', 'tokenhd'),
+		('Server URL', 'server'),
+		('Playpath Prefix', 'playpath_prefix'),
+		('Unmetered', 'free'),
+	):
+		value = auth.get(key)
+		if value is not None:
+			print('\t{}: {}'.format(desc, value))
 
 def download(url, output=None):
 	config()
@@ -86,6 +97,7 @@ def batch(batch_file):
 
 	batch_destination = '.'
 	series_ids = []
+	series_comment = {}
 	last_only = False
 
 	# separate options from the series ids
@@ -99,6 +111,7 @@ def batch(batch_file):
 			# Note: currently the value after the series_id in the batch file
 			# is only used as a comment for the user.
 			series_ids.append(key)
+			series_comment[key] = value
 
 	# move to where the files should be downloaded
 	os.chdir(batch_destination)
@@ -118,13 +131,13 @@ def batch(batch_file):
 				if last_episode == None or episode['date'] > last_episode['date']:
 					last_episode = episode
 			else:
-				batch_fetch_program(episode)
+				batch_fetch_program(episode, series=series_comment[series_id])
 
 		# Last only means we only get one episode for the series
 		if last_only:
-			batch_fetch_program(last_episode)
+			batch_fetch_program(last_episode, series=series_comment[series_id])
 
-def batch_fetch_program(episode):
+def batch_fetch_program(episode, series):
 	# Only print notification messages for episodes that have never been downloaded before.
 
 	# urls sometimes include a path like 'news/' or 'kids/'
@@ -133,10 +146,21 @@ def batch_fetch_program(episode):
 	# urls also have '.mp4' extension but downloaded files end in '.flv'
 	(base, ext) = os.path.splitext(filepart)
 
-	if not os.path.isfile(base + '.flv'):
-		msg = "getting " + episode['title'] + " - " + episode['url']
-		print(msg, file=sys.stderr)
-	iview.fetch.fetch_program(episode['url'], execvp=False, dest_file=None, quiet=True)
+	if series:
+		title = episode['title']
+		filename = iview.fetch.descriptive_filename(series, title, base)
+		if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
+			print(filename + " already exists as " + base +".flv so should be moved")
+			return
+
+	else:
+		filename = base + '.flv'
+
+	if not os.path.isfile(filename):
+		msg = "getting " + episode['title'] + " - " + episode['url'] + " -> " + filename
+		print(msg, file=stderr)
+		iview.fetch.fetch_program(episode['url'], execvp=False, dest_file=filename, quiet=True)
+
 
 
 def subtitles(name, output=None):
@@ -149,18 +173,16 @@ def subtitles(name, output=None):
 		srt = url.rsplit('/', 1)[-1] + '.srt'
 
 	if not srt == '-' and os.path.isfile(srt):
-		print('Subtitles have already been downloaded to %s' % srt, file=sys.stderr)
+		print('Subtitles have already been downloaded to %s' % srt, file=stderr)
 		return False
 
-	print('Downloading subtitles to %s...' % srt, end=' ', file=sys.stderr)
+	print('Downloading subtitles to %s...' % srt, end=' ', file=stderr)
 
 	try:
 		subtitles = iview.comm.get_captions(url)
 	except HTTPError as error:
-		print('failed', file=sys.stderr)
-		print('Got an error when downloading %s' % error.url, file=sys.stderr)
-		return False
-	except KeyboardInterrupt:
+		print('failed', file=stderr)
+		print('Got an error when downloading %s' % error.url, file=stderr)
 		return False
 
 	if not srt == '-':
@@ -172,38 +194,23 @@ def subtitles(name, output=None):
 	with f:
 		f.write(subtitles.encode('utf-8'))
 
-	print('done', file=sys.stderr)
+	print('done', file=stderr)
 
-def set_proxy(proxy=None):
+def parse_proxy_argument(proxy):
 	"""	Try to parse 'proxy' as host:port pair.  Returns an error message
 		if it cannot be understood.  Otherwise, it configures the settings
 		in iview.config and returns None.
-		
-		Must be called even if no proxy is to be used, in order to
-		setup the right socket implementation.
 	"""
 
-	if proxy is not None:
-		# this could be done much nicer with partition()
-		# but it's not available in older versions of python
-		parts = proxy.split(':')
-		if len(parts) == 2:
-			try:
-				iview.config.socks_proxy_port = int(parts[1])
-			except ValueError:
-				return "Port '%s' is not numeric" % parts[1]
-		elif len(parts) != 1:
-			return "Too many ':' in '%s'" % proxy
-		iview.config.socks_proxy_host = parts[0]
+	try:
+		split = urllib.parse.SplitResult(scheme="", netloc=proxy,
+			path="", query="", fragment="")
+		if split.port is not None:
+			iview.config.socks_proxy_port = split.port
+	except ValueError as err:
+		return err
+	iview.config.socks_proxy_host = split.hostname
 
-	# iview.comm (and therefore iview.fetch) can only be imported after
-	# configuring the proxy as we need to override the socket before
-	# importing urllib
-	global HTTPError
-	import iview.fetch
-	import iview.comm
-	from iview.comm import HTTPError
-	
 	return None
 
 def main():
@@ -240,38 +247,36 @@ def main():
 		help="use specified SOCKS proxy")
 	
 	if len(sys.argv) <= 1:
-		params.print_help(sys.stderr)
+		params.print_help(stderr)
 		sys.exit(2)
 	args = params.parse_args()
 	
-	try:
-		err = set_proxy(args.proxy)
+	if args.proxy is not None:
+		err = parse_proxy_argument(args.proxy)
 		if err is not None:
-			print("Invalid proxy specification: %s\n" % err, file=sys.stderr)
-			params.print_usage(sys.stderr)
+			print("Invalid proxy specification: %s\n" % err, file=stderr)
+			params.print_usage(stderr)
 			sys.exit(4)
-		if args.cache is not None:
-			iview.config.cache = args.cache
-		if args.host is not None:
-			iview.config.override_host = args.host
-		if args.ip is not None:
-			iview.config.ip = args.ip
+		iview.comm.configure_socks_proxy()
+	if args.cache is not None:
+		iview.config.cache = args.cache
+	if args.host is not None:
+		iview.config.override_host = args.host
+	if args.ip is not None:
+		iview.config.ip = args.ip
 
-		if args.programme:
-			programme()
-		if args.category is not None:
-			category(args.category)
-		if args.index:
-			index()
-		if args.bindex:
-			batch_index()
-		if args.series is not None:
-			series(args.series)
-		if args.print_auth:
-			print_auth()
-	
-	except KeyboardInterrupt: # don't traceback on a Ctrl+C
-		pass
+	if args.programme:
+		programme()
+	if args.category is not None:
+		category(args.category)
+	if args.index:
+		index()
+	if args.bindex:
+		batch_index()
+	if args.series is not None:
+		series(args.series)
+	if args.print_auth:
+		print_auth()
 	
 	if args.download is not None:
 		download(args.download, args.output)
@@ -281,4 +286,12 @@ def main():
 		batch(args.batch)
 
 if __name__ == "__main__":
-	main()
+	try:
+		main()
+	except KeyboardInterrupt:
+		sys.exit(1)
+	except EnvironmentError as err:
+		if err.errno == EPIPE:
+			sys.exit(1)
+		else:
+			raise

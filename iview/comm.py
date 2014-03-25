@@ -1,9 +1,9 @@
 import os
+import urllib.request
 import sys
 from . import config
 from . import parser
 import gzip
-# "urllib.request" is imported at end
 from urllib.parse import urljoin, urlsplit
 from urllib.parse import urlencode
 
@@ -20,7 +20,7 @@ def fetch_url(url):
 	# urlopen()'s "Connection: close" header and
 	# a "gzip" encoded response
 	# sometimes seems to cause the server to truncate the HTTP response
-	from .hds import PersistentConnectionHandler
+	from .utils import PersistentConnectionHandler
 	with PersistentConnectionHandler() as connection:
 		session = urllib.request.build_opener(connection)
 		req = urllib.request.Request(url,
@@ -175,7 +175,3 @@ def configure_socks_proxy():
 
 if config.socks_proxy_host is not None:
 	configure_socks_proxy()
-
-# must be done after the (optional) SOCKS proxy is configured
-import urllib.request
-from urllib.error import HTTPError

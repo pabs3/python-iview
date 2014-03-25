@@ -30,8 +30,8 @@ Optional dependencies:
 
 * For the live News 24 stream, or to use the RTMP streaming host:
   rtmpdump, <https://rtmpdump.mplayerhq.hu/>
-* To use a SOCKS proxy: socksipy,
-  <https://code.google.com/p/socksipy-branch/>
+* To use a SOCKS proxy: Py Socks, <https://github.com/Anorov/PySocks>,
+  or socksipy, <https://code.google.com/p/socksipy-branch/>
 
 Installation
 ============

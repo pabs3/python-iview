@@ -10,7 +10,30 @@ from urllib.parse import urlsplit, urljoin
 import sys
 
 def get_filename(url):
+	"""Generates a default file name from the media URL"""
 	return url.rsplit('/', 1)[-1].rsplit('.', 1)[0] + '.flv'
+
+def descriptive_filename(series, title, urlpart):
+	"""Generates a more descriptive file name from the programme title"""
+	# if title contains program, remove duplication
+	title = title.replace(series + ' ', '')
+	ext = 'flv' # ABC always provides us with an FLV container
+
+	# for specials that title == program, just use program.ext
+	if series == title:
+		filename = "%s.%s" %(series, ext)
+	else:
+		# If we can get a SxEy show descriptor, lets use it.
+		match = re.match(r".*_(\d*)_(\d*)", urlpart)
+
+		if match:
+			title = 'S%sE%s - %s' %(match.group(1), match.group(2), title)
+
+		filename = "%s - %s.%s" %(series, title, ext)
+
+	# strip invalid filename characters < > : " / \ | ? *
+	filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
+	return filename
 
 def rtmpdump(execvp=False, resume=False, quiet=False, live=False,
 frontend=None, **kw):
@@ -164,9 +187,12 @@ def get_fetcher(url=None, *, item=dict()):
 		if ext == 'mp4':
 			url = 'mp4:' + url
 
-		# Cannot use urljoin() because the RTMP scheme would have to
-		# be added to its whitelist
-		rtmp_url = auth['rtmp_url'] + '?auth=' + auth['token']
+		rtmp_url = auth['rtmp_url']
+		token = auth.get('token')
+		if token:
+		    # Cannot use urljoin() because
+		    # the RTMP scheme would have to be added to its whitelist
+		    rtmp_url += '?auth=' + token
 		
 		return RtmpFetcher(rtmp_url, playpath=url)
 	else:
@@ -199,7 +225,7 @@ class HdsFetcher:
 	def __init__(self, file, auth):
 		self.url = urljoin(auth['server'], auth['path'])
 		self.file = file
-		self.tokenhd = auth['tokenhd']
+		self.tokenhd = auth.get('tokenhd')
 	
 	def fetch(self, *, frontend, execvp, quiet, **kw):
 		if frontend is None:

@@ -4,8 +4,8 @@ import iview.config
 import iview.comm
 import iview.fetch
 import sys
-import re
-from iview.comm import HTTPError
+import os.path
+from urllib.error import HTTPError
 
 try:
 	import gi
@@ -198,9 +198,13 @@ def on_download_clicked(widget, data=None):
 		buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
 		         Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
 
+	if save_location is None:
+		home = os.path.expanduser("~")
+		if home != "~":
+			save_location = home
 	if save_location is not None:
 		save_dialog.set_current_folder(save_location)
-	
+
 	# build a nice filename
 	# could use this ugly version instead:
 	#   filename = iview.fetch.get_filename(item[1]['url'])
@@ -208,17 +212,21 @@ def on_download_clicked(widget, data=None):
 	# this is made into a shared function
 
 	program = model.get_value(model.iter_parent(selected_iter), 0)
-	# if title contains program, remove duplication
-	title = item[0].replace(program + ' ', '')
-	ext = 'flv' # ABC always provides us with an FLV container
-	# for specials that title == program, just use program.ext
-	if program == title:
-		filename = "%s.%s" %(program, ext)
-	else:
-		filename = "%s - %s.%s" %(program, title, ext)
-
-	# strip invalid filename characters < > : " / \ | ? *
-	filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
+	title = item[0]
+	url = item[1]['url']
+	filename = iview.fetch.descriptive_filename(program, title, url)
+	if save_location is not None:
+		if os.path.isfile(os.path.join(save_location, filename)):
+			# simple method adding '~Duplicate' to the filename
+			#filename = filename[:-4] + '~Duplicate' + filename[-4:]
+			# Method to increment file names inside brackets
+			count = 1
+			tmpfile = filename[:-4] + ' ('
+			tmpext = ')' + filename[-4:]
+			# increment numbers until the file doesn't exist
+			while os.path.exists(os.path.join(save_location, filename)):
+				filename = tmpfile + str(count) + tmpext
+				count = count + 1
 	save_dialog.set_current_name(filename)
 
 	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
@@ -389,7 +397,7 @@ def main():
 	except HTTPError as error:
 		message = Gtk.MessageDialog(
 			parent=window,
-			type=Gtk.MessageType.ERROR,
+			message_type=Gtk.MessageType.ERROR,
 			buttons=Gtk.ButtonsType.CLOSE)
 		message.set_markup('<big><b>Download failed</b></big>\n\n'
 			'Could not retrieve an important configuration file from iView.'
@@ -401,7 +409,6 @@ def main():
 			' or contact the author.\n\n'
 			'URL: %s' % error.url)
 		message.run()
-		Gtk.main_quit()
 		sys.exit(1)
 
 	window.show_all()

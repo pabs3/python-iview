@@ -286,8 +286,10 @@ def progress_update(frontend, flv, time, duration):
             time, duration, size / 1e6))
         stderr.flush()
 
-def manifest_url(url, file, hdnea):
-    file += "/manifest.f4m?hdcore=&hdnea=" + urlencode_param(hdnea)
+def manifest_url(url, file, hdnea=None):
+    file += "/manifest.f4m?hdcore="
+    if hdnea:
+        file += "&hdnea=" + urlencode_param(hdnea)
     return urljoin(url, file)
 
 def get_manifest(url, session):

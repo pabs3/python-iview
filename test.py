@@ -6,15 +6,19 @@ import imp
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 import sys
-from io import BytesIO, TextIOWrapper
+from io import BytesIO, TextIOWrapper, StringIO
 from iview.utils import fastforward
 from errno import EPIPE
+
+try:  # Python 3.4
+    from importlib import reload
+except ImportError:  # Python < 3.4
+    from imp import reload
 
 class TestCli(TestCase):
     def setUp(self):
         path = os.path.join(os.path.dirname(__file__), "iview-cli")
         self.iview_cli = load_script(path, "iview-cli")
-        self.iview_cli.set_proxy()
     
     def test_subtitles(self):
         class comm:
@@ -24,11 +28,52 @@ class TestCli(TestCase):
                 return "dummy captions"
         
         with substattr(self.iview_cli.iview, "comm", comm), \
-        TemporaryDirectory(prefix="subtitles.") as dir:
+        substattr(self.iview_cli, "stderr", StringIO()), \
+        TemporaryDirectory(prefix="python-iview.") as dir:
             output = os.path.join(dir, "programme.srt")
             self.iview_cli.subtitles("programme.mp4", output)
             with substattr(sys, "stdout", TextIOWrapper(BytesIO())):
                 self.iview_cli.subtitles("programme.mp4", "-")
+    
+    def test_proxy(self):
+        class config:
+            pass
+        with substattr(self.iview_cli.iview, config):
+            proxy = "localhost:1080"
+            self.assertIsNone(self.iview_cli.parse_proxy_argument(proxy),
+                "Proxy setup failed")
+    
+    def test_batch(self):
+        with TemporaryDirectory(prefix="python-iview.") as dir:
+            batch = os.path.join(dir, "batch.cfg")
+            with open(batch, "w", encoding="ascii") as file:
+                file.write(
+                    "[batch]\n"
+                    "destination: {}\n"
+                    "100: Dummy series\n".format(dir)
+                )
+            class comm:
+                def get_config():
+                    pass
+                def get_series_items(id):
+                    return (dict(url="programme.mp4", title="Dummy title"),)
+            def fetch_program(url, *, execvp, dest_file, quiet):
+                nonlocal fetched
+                fetched = dest_file
+            with substattr(self.iview_cli.iview, comm), \
+            substattr(self.iview_cli.iview.fetch, fetch_program), \
+            substattr(self.iview_cli, "stderr", StringIO()):
+                self.addCleanup(os.chdir, os.getcwd())
+                
+                fetched = None
+                self.iview_cli.batch(batch)
+                self.assertEqual("Dummy series - Dummy title.flv", fetched)
+                
+                with open(fetched, "wb"):
+                    pass
+                fetched = None
+                self.iview_cli.batch(batch)
+                self.assertIsNone(fetched, "Programme downloaded twice")
 
 class TestF4v(TestCase):
     def test_read_box(self):
@@ -245,6 +290,64 @@ class TestMockHttp(TestPersistentHttp):
         self.assertIsNot(sock1, sock2, "Expected new socket connection")
         self.assertTrue(sock2.data, "Disconnected after second request")
 
+import iview.comm
+
+class TestProxy(TestCase):
+    class DirectSocket(Exception):
+        pass
+    
+    def run(self, *pos, **kw):
+        import socket as socketmod
+        def socket(*pos, **kw):
+            raise self.DirectSocket("socket.socket() called")
+        with substattr(socketmod, socket):
+            return TestCase.run(self, *pos, **kw)
+    
+    def test_patching(self):
+        """Ensure test case monkey patching works"""
+        self.common(self.DirectSocket)
+    
+    def test_no_direct(self):
+        """Ensure all connections are proxied"""
+        import iview.config
+        
+        # Cannot use None to indicate module was absent
+        realsocks = sys.modules.get("socks", "absent")
+        
+        class SocketProxied(Exception):
+            pass
+        class socks:
+            def socksocket(*pos, **kw):
+                raise SocketProxied()
+            PROXY_TYPE_SOCKS5 = None
+            def setdefaultproxy(*pos, **kw):
+                pass
+        sys.modules["socks"] = socks
+        try:
+            # Set dummy proxy values to enable proxy code
+            with substattr(iview.config, "socks_proxy_host", True), \
+            substattr(iview.config, "socks_proxy_port", True):
+                reload(iview.comm)
+                return self.common(SocketProxied)
+        finally:
+            if realsocks == "absent":
+                del sys.modules["socks"]
+            else:
+                sys.modules["socks"] = realsocks
+            reload(iview.comm)  # Reconfigure after resetting proxy settings
+    
+    def common(self, exception):
+        from iview import hds
+        self.assertRaises(exception, iview.comm.get_config)
+        
+        iview_config = dict(api_url=None, headers=dict(), auth_url=None)
+        with substattr(iview.comm, "iview_config", iview_config):
+            self.assertRaises(exception, iview.comm.get_index)
+            self.assertRaises(exception, iview.comm.get_auth)
+        
+        self.assertRaises(exception, hds.fetch,
+            "http://localhost/", "media path", "hdnea", dest_file=None)
+
 @contextmanager
 def substattr(obj, attr, *value):
     if value:
@@ -267,4 +370,4 @@ def load_script(path, name):
 
 if __name__ == "__main__":
     import unittest
-    unittest.main(buffer=True)
+    unittest.main()
