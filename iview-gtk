@@ -4,7 +4,6 @@ import iview.config
 import iview.comm
 import iview.fetch
 import sys
-import re
 from urllib.error import HTTPError
 
 try:
@@ -208,17 +207,7 @@ def on_download_clicked(widget, data=None):
 	# this is made into a shared function
 
 	program = model.get_value(model.iter_parent(selected_iter), 0)
-	# if title contains program, remove duplication
-	title = item[0].replace(program + ' ', '')
-	ext = 'flv' # ABC always provides us with an FLV container
-	# for specials that title == program, just use program.ext
-	if program == title:
-		filename = "%s.%s" %(program, ext)
-	else:
-		filename = "%s - %s.%s" %(program, title, ext)
-
-	# strip invalid filename characters < > : " / \ | ? *
-	filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
+	filename = iview.fetch.descriptive_filename(program, item[0])
 	save_dialog.set_current_name(filename)
 
 	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP

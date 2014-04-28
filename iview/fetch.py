@@ -10,7 +10,23 @@ from urllib.parse import urlsplit, urljoin
 import sys
 
 def get_filename(url):
+	"""Generates a default file name from the media URL"""
 	return url.rsplit('/', 1)[-1].rsplit('.', 1)[0] + '.flv'
+
+def descriptive_filename(series, title):
+	"""Generates a more descriptive file name from the programme title"""
+	# if title contains program, remove duplication
+	title = title.replace(series + ' ', '')
+	ext = 'flv' # ABC always provides us with an FLV container
+	# for specials that title == program, just use program.ext
+	if series == title:
+		filename = "%s.%s" %(series, ext)
+	else:
+		filename = "%s - %s.%s" %(series, title, ext)
+
+	# strip invalid filename characters < > : " / \ | ? *
+	filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
+	return filename
 
 def rtmpdump(execvp=False, resume=False, quiet=False, live=False,
 frontend=None, **kw):

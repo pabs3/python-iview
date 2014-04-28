@@ -10,7 +10,6 @@ import configparser
 from errno import EPIPE
 from sys import stderr
 import urllib.parse
-import re
 
 def config():
 	try:
@@ -148,13 +147,8 @@ def batch_fetch_program(episode, series):
 	(base, ext) = os.path.splitext(filepart)
 
 	if series:
-		title = episode['title'].replace(series + ' ', '')
-		if series == title:
-			filename = "%s.flv" %(series)
-		else:
-			filename = "%s - %s.flv" %(series, title)
-		filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
-
+		title = episode['title']
+		filename = iview.fetch.descriptive_filename(series, title)
 		if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
 			print(filename + " already exists as " + base +".flv so should be moved")
 			return
