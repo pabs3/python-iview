@@ -148,7 +148,7 @@ def batch_fetch_program(episode, series):
 
 	if series:
 		title = episode['title']
-		filename = iview.fetch.descriptive_filename(series, title)
+		filename = iview.fetch.descriptive_filename(series, title, base)
 		if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
 			print(filename + " already exists as " + base +".flv so should be moved")
 			return
