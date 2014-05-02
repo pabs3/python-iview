@@ -27,7 +27,7 @@ def descriptive_filename(series, title, urlpart):
 		match = re.match(r".*_(\d*)_(\d*)", urlpart)
 
 		if match:
-			title = title + ' - S' + match.group(1) + 'E' + match.group(2)
+			title = 'S%sE%s - %s' %(match.group(1), match.group(2), title)
 
 		filename = "%s - %s.%s" %(series, title, ext)
 
