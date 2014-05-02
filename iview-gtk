@@ -207,7 +207,9 @@ def on_download_clicked(widget, data=None):
 	# this is made into a shared function
 
 	program = model.get_value(model.iter_parent(selected_iter), 0)
-	filename = iview.fetch.descriptive_filename(program, item[0])
+	title = item[0]
+	url = item[1]['url']
+	filename = iview.fetch.descriptive_filename(program, title, url)
 	save_dialog.set_current_name(filename)
 
 	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
