@@ -29,17 +29,14 @@ import sys
 import iview.comm
 import iview.fetch
 
-try:
-	url = os.environ['PATH_INFO'].split('/')[-1].split(' ')[0]
-except KeyError:
-	url = None
+url = os.getenv('PATH_INFO', '').split('/')[-1].split(' ')[0]
 
 # The above split(' ')[0] is called being paranoid about parameter injection.
 # Yes, iview.fetch doesn't call the shell (it uses execvp()), but you never
 # know how people are going to zombify this script. If iView ever starts using
 # spaces, I'll update this script.
 
-if url is None or len(url) <= 0:
+if not url:
 	print('Content-type: text/plain\r')
 	print('')
 	print("""iView CGI script
