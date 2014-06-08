@@ -29,9 +29,9 @@ import sys
 import iview.comm
 import iview.fetch
 
-url = os.getenv('PATH_INFO', '').split('/')[-1].split(' ')[0]
+url = os.getenv('PATH_INFO', '').split(' ', 1)[0].lstrip('/')
 
-# The above split(' ')[0] is called being paranoid about parameter injection.
+# The above split(' ') is called being paranoid about parameter injection.
 # Yes, iview.fetch doesn't call the shell (it uses execvp()), but you never
 # know how people are going to zombify this script. If iView ever starts using
 # spaces, I'll update this script.
@@ -44,7 +44,7 @@ if not url:
 To use this script, specify the video filename as a subdirectory of this script.
 For example:
 """)
-	print('http://' + os.environ['HTTP_HOST'] + os.environ['SCRIPT_NAME'] + '/730report_10_01_01.flv')
+	print('http://' + os.environ['HTTP_HOST'] + os.environ['SCRIPT_NAME'] + '/news/730s_Tx_2605.mp4')
 	sys.exit(0)
 
 print('Content-type: video/x-flv\r')
