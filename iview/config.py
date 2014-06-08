@@ -6,14 +6,14 @@ api_version = 388
 # os.uname() is not available on Windows, so we make this optional.
 try:
 	uname = os.uname()
-	os_string = ' (%s %s %s)' % (uname[0], uname[2], uname[4])
+	os_string = ' ({} {} {})'.format(uname[0], uname[2], uname[4])
 except AttributeError:
 	os_string = ' (non-Unix OS)'
 
-user_agent = 'Python-iView %s%s' % (version, os_string)
+user_agent = 'Python-iView {}{}'.format(version, os_string)
 
 base_url   = 'http://www.abc.net.au/iview/'
-config_url   = 'xml/config.xml?r=%d' % api_version
+config_url   = 'xml/config.xml?r={}'.format(api_version)
 
 akamai_playpath_prefix = 'flash/playback/_definst_/'
 

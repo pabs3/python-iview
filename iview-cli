@@ -47,7 +47,7 @@ def index():
 	index = iview.comm.get_index()
 
 	for series in index:
-		print(series['id'] + '\t' + series['title'])
+		print('{id}\t{title}'.format_map(series))
 
 def batch_index():
 	"""	Downloads the iView index, and prints the corresponding series and IDs in a format
@@ -57,7 +57,7 @@ def batch_index():
 	index = iview.comm.get_index()
 
 	for series in index:
-		print(series['id'] + ': ' + series['title'])
+		print('{id}: {title}'.format_map(series))
 
 def series(series_id):
 	config()
@@ -65,7 +65,8 @@ def series(series_id):
 
 def print_series_items(items, indent=''):
 	for item in items:
-		print(indent + item['title'] + '\t(' + item['url'] + ')')
+		print('{}{}\t({})'.format(indent,
+			item['title'], item['url']))
 
 def print_auth():
 	config()
@@ -150,14 +151,14 @@ def batch_fetch_program(episode, series):
 		title = episode['title']
 		filename = iview.fetch.descriptive_filename(series, title, base)
 		if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
-			print(filename + " already exists as " + base +".flv so should be moved")
+			print("{} already exists as {}.flv so should be moved".format(filename, base))
 			return
 
 	else:
 		filename = base + '.flv'
 
 	if not os.path.isfile(filename):
-		msg = "getting " + episode['title'] + " - " + episode['url'] + " -> " + filename
+		msg = "getting {} - {} -> {}".format(episode['title'], episode['url'], filename)
 		print(msg, file=stderr)
 		iview.fetch.fetch_program(episode['url'], execvp=False, dest_file=filename, quiet=True)
 
@@ -173,16 +174,17 @@ def subtitles(name, output=None):
 		srt = url.rsplit('/', 1)[-1] + '.srt'
 
 	if not srt == '-' and os.path.isfile(srt):
-		print('Subtitles have already been downloaded to %s' % srt, file=stderr)
+		print('Subtitles have already been downloaded to {}'.format(srt), file=stderr)
 		return False
 
-	print('Downloading subtitles to %s...' % srt, end=' ', file=stderr)
+	msg = 'Downloading subtitles to {}...'.format(srt)
+	print(msg, end=' ', file=stderr)
 
 	try:
 		subtitles = iview.comm.get_captions(url)
 	except HTTPError as error:
 		print('failed', file=stderr)
-		print('Got an error when downloading %s' % error.url, file=stderr)
+		print('Got an error when downloading {}'.format(error.url), file=stderr)
 		return False
 
 	if not srt == '-':
@@ -254,7 +256,7 @@ def main():
 	if args.proxy is not None:
 		err = parse_proxy_argument(args.proxy)
 		if err is not None:
-			print("Invalid proxy specification: %s\n" % err, file=stderr)
+			print("Invalid proxy specification: {}\n".format(err), file=stderr)
 			params.print_usage(stderr)
 			sys.exit(4)
 		iview.comm.configure_socks_proxy()

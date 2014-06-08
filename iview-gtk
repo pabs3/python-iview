@@ -49,12 +49,13 @@ class Frontend:
 	def show_fraction(self, p):
 		Gdk.threads_enter()
 		self.parent.progress.set_fraction(p)
-		self.parent.set_title("(%0.1f%%) %s" %(p*100, self.parent.my_title))
+		self.parent.set_title("({:.1%}) {}".format(p, self.parent.my_title))
 		Gdk.threads_leave()
 	
 	def set_size(self, size):
+		size = '{:.1f} MB'.format(size / 1e6)
 		Gdk.threads_enter()
-		self.parent.labels[2][1].set_text('%.1f MB' % (size / 1e6))
+		self.parent.labels[2][1].set_text(size)
 		Gdk.threads_leave()
 		if self.size:
 			self.show_fraction(size / self.size)
@@ -221,11 +222,12 @@ def on_download_clicked(widget, data=None):
 			#filename = filename[:-4] + '~Duplicate' + filename[-4:]
 			# Method to increment file names inside brackets
 			count = 1
-			tmpfile = filename[:-4] + ' ('
-			tmpext = ')' + filename[-4:]
+			tmpfile = filename[:-4]
+			tmpext = filename[-4:]
 			# increment numbers until the file doesn't exist
 			while os.path.exists(os.path.join(save_location, filename)):
-				filename = tmpfile + str(count) + tmpext
+				filename = "{} ({}){}".format(
+					tmpfile, count, tmpext)
 				count = count + 1
 	save_dialog.set_current_name(filename)
 
@@ -407,7 +409,7 @@ def main():
 			' the iView API has most likely changed.'
 			' Try and find an updated version of this program,'
 			' or contact the author.\n\n'
-			'URL: %s' % error.url)
+			'URL: {}'.format(error.url))
 		message.run()
 		sys.exit(1)
 

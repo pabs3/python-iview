@@ -21,15 +21,15 @@ def descriptive_filename(series, title, urlpart):
 
 	# for specials that title == program, just use program.ext
 	if series == title:
-		filename = "%s.%s" %(series, ext)
+		filename = "{}.{}".format(series, ext)
 	else:
 		# If we can get a SxEy show descriptor, lets use it.
 		match = re.match(r".*_(\d*)_(\d*)", urlpart)
 
 		if match:
-			title = 'S%sE%s - %s' %(match.group(1), match.group(2), title)
+			title = 'S{}E{} - {}'.format(match.group(1), match.group(2), title)
 
-		filename = "%s - %s.%s" %(series, title, ext)
+		filename = "{} - {}.{}".format(series, title, ext)
 
 	# strip invalid filename characters < > : " / \ | ? *
 	filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
@@ -75,7 +75,7 @@ frontend=None, **kw):
 
 	if config.socks_proxy_host is not None:
 		args.append('--socks')
-		args.append(config.socks_proxy_host + ':' + str(config.socks_proxy_port))
+		args.append('{}:{}'.format(config.socks_proxy_host, config.socks_proxy_port))
 
 	if resume:
 		args.append('--resume')
@@ -95,7 +95,7 @@ frontend=None, **kw):
 			else:
 				subprocess.check_call(args)
 		except OSError:
-			print('Could not execute %s, trying another...' % exec_attempt, file=sys.stderr)
+			print('Could not execute {}, trying another...'.format(exec_attempt), file=sys.stderr)
 			continue
 
 	print("""\
@@ -156,7 +156,7 @@ class RtmpWorker(threading.Thread):
 		if returncode == 0: # EXIT_SUCCESS
 			self.frontend.done()
 		else:
-			print('Backend aborted with code %d (either it crashed, or you paused it)' % returncode, file=sys.stderr)
+			print('Backend aborted with code {} (either it crashed, or you paused it)'.format(returncode), file=sys.stderr)
 			if returncode == 1: # connection timeout results in code 1
 				self.frontend.done(failed=True)
 			else:

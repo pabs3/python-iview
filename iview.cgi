@@ -44,7 +44,7 @@ if not url:
 To use this script, specify the video filename as a subdirectory of this script.
 For example:
 """)
-	print('http://' + os.environ['HTTP_HOST'] + os.environ['SCRIPT_NAME'] + '/news/730s_Tx_2605.mp4')
+	print('http://{HTTP_HOST}{SCRIPT_NAME}/news/730s_Tx_2605.mp4'.format_map(os.environ))
 	sys.exit(0)
 
 print('Content-type: video/x-flv\r')

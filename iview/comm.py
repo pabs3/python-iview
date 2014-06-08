@@ -123,7 +123,7 @@ def get_series_items(series_id, get_meta=False):
 			break
 	else:
 		# Bad series number returns empty json string, ignore it.
-		print('no results for series id %s, skipping' % series_id, file=sys.stderr)
+		print('no results for series id {}, skipping'.format(series_id), file=sys.stderr)
 		return []
 	
 	items = meta['items']
@@ -152,10 +152,10 @@ def get_captions(url):
 		parse_subtitle(), which converts it to SRT format.
 	"""
 
-	captions_url = iview_config['captions_url'] + '%s.xml'
+	captions_url = '{}{}.xml'.format(iview_config['captions_url'], url)
 
 	TYPES = ("text/xml", "application/xml")
-	xml = maybe_fetch(captions_url % url, TYPES)
+	xml = maybe_fetch(captions_url, TYPES)
 	return parser.parse_captions(xml)
 
 def configure_socks_proxy():
