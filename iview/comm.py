@@ -6,15 +6,17 @@ from . import parser
 import gzip
 from urllib.parse import urljoin, urlsplit
 from urllib.parse import urlencode
+from .utils import http_get
 
 
 iview_config = None
 
-def fetch_url(url):
+def fetch_url(url, types=None):
 	"""	Simple function that fetches a URL using urllib.
 		An exception is raised if an error (e.g. 404) occurs.
 	"""
 	url = urljoin(config.base_url, url)
+	headers = iview_config['headers']
 	
 	# Not using plain urlopen() because the combination of
 	# urlopen()'s "Connection: close" header and
@@ -23,16 +25,14 @@ def fetch_url(url):
 	from .utils import PersistentConnectionHandler
 	with PersistentConnectionHandler() as connection:
 		session = urllib.request.build_opener(connection)
-		req = urllib.request.Request(url,
-			headers=iview_config['headers'])
-		with session.open(req) as http:
+		with http_get(session, url, types, headers=headers) as http:
 			headers = http.info()
 			if headers.get('content-encoding') == 'gzip':
 				return gzip.GzipFile(fileobj=http).read()
 			else:
 				return http.read()
 
-def maybe_fetch(url):
+def maybe_fetch(url, type=None):
 	"""	Only fetches a URL if it is not in the cache directory.
 		In practice, this is really bad, and only useful for saving
 		bandwidth when debugging. For one, it doesn't respect
@@ -40,7 +40,7 @@ def maybe_fetch(url):
 	"""
 
 	if not config.cache:
-		return fetch_url(url)
+		return fetch_url(url, type)
 
 	if not os.path.isdir(config.cache):
 		os.mkdir(config.cache)
@@ -51,7 +51,7 @@ def maybe_fetch(url):
 		with open(filename, 'rb') as f:
 			data = f.read()
 	else:
-		data = fetch_url(url)
+		data = fetch_url(url, type)
 		with open(filename, 'wb') as f:
 			f.write(data)
 
@@ -73,7 +73,8 @@ def get_config(headers=()):
 	headers['Accept-Encoding'] = 'gzip'
 	iview_config = dict(headers=headers)
 	
-	parsed = parser.parse_config(maybe_fetch(config.config_url))
+	xml = maybe_fetch(config.config_url, ("application/xml", "text/xml"))
+	parsed = parser.parse_config(xml)
 	iview_config.update(parsed)
 
 def get_auth():
@@ -88,14 +89,14 @@ def get_auth():
 		query = query and query + "&"
 		query += urlencode((("ip", config.ip),))
 		auth = urljoin(auth, "?" + query)
-	auth = fetch_url(auth)
+	auth = fetch_url(auth, ("application/xml", "text/xml"))
 	return parser.parse_auth(auth, iview_config)
 
 def get_categories():
 	"""Returns the list of categories
 	"""
 	url = iview_config['categories_url']
-	category_data = maybe_fetch(url)
+	category_data = maybe_fetch(url, ("application/xml", "text/xml"))
 	categories = parser.parse_categories(category_data)
 	return categories
 
@@ -137,11 +138,11 @@ def get_keyword(keyword):
 def series_api(key, value=""):
 	query = urlencode(((key, value),))
 	url = urljoin(iview_config['api_url'], '?' + query)
-	index_data = maybe_fetch(url)
+	index_data = maybe_fetch(url, ("application/json",))
 	return parser.parse_series_api(index_data)
 
 def get_highlights():
-
+	# Reported as Content-Type: text/html
 	highlightXML = maybe_fetch(iview_config['highlights'])
 	return parser.parse_highlights(highlightXML)
 
@@ -153,7 +154,8 @@ def get_captions(url):
 
 	captions_url = iview_config['captions_url'] + '%s.xml'
 
-	xml = maybe_fetch(captions_url % url)
+	TYPES = ("text/xml", "application/xml")
+	xml = maybe_fetch(captions_url % url, TYPES)
 	return parser.parse_captions(xml)
 
 def configure_socks_proxy():

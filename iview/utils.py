@@ -180,3 +180,21 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
         return self
     def __exit__(self, *exc):
         self.close()
+
+def http_get(session, url, types=None, *, headers=dict(), **kw):
+	headers = dict(headers)
+	if types is not None:
+		headers["Accept"] = ", ".join(types)
+	req = urllib.request.Request(url, headers=headers, **kw)
+	response = session.open(req)
+	try:
+		headers = response.info()
+		headers.set_default_type(None)
+		type = headers.get_content_type()
+		if types is not None and type not in types:
+			msg = "Unexpected content type {}"
+			raise TypeError(msg.format(type))
+		return response
+	except:
+		response.close()
+		raise

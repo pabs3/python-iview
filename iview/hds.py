@@ -19,7 +19,7 @@ from .utils import CounterWriter, ZlibDecompressorWriter, TeeWriter
 from .utils import streamcopy, fastforward
 from shutil import copyfileobj
 import urllib.request
-from .utils import PersistentConnectionHandler
+from .utils import PersistentConnectionHandler, http_get
 from .utils import urlencode_param
 from sys import stderr
 from urllib.parse import urljoin
@@ -91,7 +91,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             frag_url = "{}Seg{}-Frag{}".format(media_url, seg, frag)
             if player:
                 frag_url = urljoin(frag_url, "?" + player)
-            response = session.open(frag_url)
+            response = http_get(session, frag_url, ("video/f4f",))
             
             while True:
                 if abort and abort.is_set():
@@ -156,6 +156,8 @@ def get_bootstrap(media, *, session, url, player=None):
         if player:
             bsurl = urljoin(bsurl, "?" + player)
         with session.open(bsurl) as response:
+            type = response.info().get("Content-Type")
+            print("Bootstrap Content-Type: {}".format(type), file=stderr)
             bootstrap = response.read()
     else:
         bootstrap = BytesIO(bootstrap["data"])
@@ -309,7 +311,7 @@ def get_manifest(url, session):
     one "media" item. A "bootstrapInfo" dictionary may contain the special
     key "data", which holds the associated bootstrap data."""
     
-    with session.open(url) as response:
+    with http_get(session, url, ("video/f4m",)) as response:
         manifest = ElementTree.parse(response).getroot()
     
     parsed = xml_text_elements(manifest, F4M_NAMESPACE)
