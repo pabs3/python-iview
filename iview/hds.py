@@ -27,11 +27,13 @@ from .utils import PersistentConnectionHandler, http_get
 from .utils import urlencode_param
 from sys import stderr
 from urllib.parse import urljoin
-from io import BytesIO
+import io
 from .utils import xml_text_elements
 from . import flvlib
 from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
+from errno import ESPIPE, EBADF
+import os
 
 def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
 **kw):
@@ -75,7 +77,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             if bootstrap["time"]:
                 duration = bootstrap["time"] / bootstrap["timescale"]
             elif metadata:
-                scriptdata = flvlib.parse_scriptdata(BytesIO(metadata))
+                scriptdata = flvlib.parse_scriptdata(io.BytesIO(metadata))
                 assert scriptdata["name"] == b"onMetaData"
                 duration = scriptdata["value"].get("duration")
         
@@ -109,7 +111,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
                         audio_found = False
                         video_found = False
                         while boxsize and not (audio_found and video_found):
-                            cache = BytesIO()
+                            cache = io.BytesIO()
                             proxy = WritingReader(response, cache)
                             tag = flvlib.read_tag_header(proxy)
                             
@@ -162,7 +164,7 @@ def get_bootstrap(media, *, session, url, player=None):
         with http_get(session, bsurl, "video/abst") as response:
             bootstrap = response.read()
     else:
-        bootstrap = BytesIO(bootstrap["data"])
+        bootstrap = io.BytesIO(bootstrap["data"])
     
     (type, _) = read_box_header(bootstrap)
     assert type == b"abst"
@@ -227,7 +229,11 @@ def get_bootstrap(media, *, session, url, player=None):
     return result
 
 def start_flv(dest_file, metadata):
-    """Write out start of FLV"""
+    """Determine resume point, or write out start of FLV"""
+    frags = resume_point(dest_file, metadata)
+    if frags is not None:
+        return dest_file
+    
     flv = CounterWriter(dest_file)  # Track size even if piping to stdout
     
     # Assume audio and video tags will be present
@@ -236,6 +242,50 @@ def start_flv(dest_file, metadata):
     if metadata:
         flvlib.write_scriptdata(flv, metadata)
     return flv
+
+def resume_point(dest_file, metadata):
+    try:
+        start = dest_file.tell()  # Ensures file is seekable
+        fd = dest_file.fileno()
+    except io.UnsupportedOperation:
+        return None
+    except EnvironmentError as err:
+        if err.errno == ESPIPE:
+            return None
+        raise
+    
+    with os.fdopen(fd, "rb", closefd=False) as reader:
+        try:
+            header = flvlib.read_file_header(reader)
+            if header != dict(audio=True, video=True):
+                raise ValueError(header)
+            
+            if metadata:
+                tag = flvlib.read_tag_header(reader)
+                if tag is None:
+                    raise EOFError()
+                expected = dict(
+                    type=flvlib.TAG_SCRIPTDATA,
+                    filter=False,
+                    length=len(metadata),
+                    timestamp=0,
+                    streamid=0,
+                )
+                if tag != expected:
+                    raise ValueError(tag)
+                data = read_strict(reader, tag["length"])
+                if data != metadata:
+                    raise ValueError()
+                fastforward(reader, 4)
+        except EOFError:
+            pass
+        except EnvironmentError as err:
+            if err.errno != EBADF:  # Reading from write-only file descriptor
+                raise
+    
+    # EOF before first tag, or file descriptor not readable
+    dest_file.seek(start)
+    return None
 
 def iter_segs(seg_runs):
     # For each run of segments

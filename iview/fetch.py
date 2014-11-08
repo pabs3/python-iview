@@ -8,6 +8,7 @@ from locale import getpreferredencoding
 from . import hds
 from urllib.parse import urlsplit, urljoin
 import sys
+from stat import S_IRUSR, S_IWUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 
 def get_filename(url):
 	"""Generates a default file name from the media URL"""
@@ -267,6 +268,13 @@ def hds_open_file(*pos, dest_file, **kw):
 		dest_file = sys.stdout.detach()
 		sys.stdout = None
 	else:
-		dest_file = open(dest_file, "wb")
+		flags = os.O_RDWR | os.O_CREAT  # Create but do not truncate
+		for flag in (
+		"O_BINARY", "O_CLOEXEC", "O_NOINHERIT", "O_SEQUENTIAL"):
+			flags |= getattr(os, flag, 0)
+		mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP |
+		    S_IROTH | S_IWOTH)
+		fd = os.open(dest_file, flags, mode)
+		dest_file = os.fdopen(fd, "wb")
 	with dest_file:
 		return hds.fetch(*pos, dest_file=dest_file, **kw)
