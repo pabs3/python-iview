@@ -1,6 +1,6 @@
 from .utils import fastforward, CounterWriter
 from struct import Struct
-from .utils import read_int
+from .utils import read_int, read_strict
 from .utils import setitem
 
 def main():
@@ -29,10 +29,10 @@ def write_file_header(flv, audio=True, video=True):
     flv.write((0).to_bytes(4, "big"))  # Previous tag size field
 
 def read_file_header(flv):
-    signature = flv.read(flv, 3)
+    signature = read_strict(flv, 3)
     if signature != SIGNATURE:
         raise ValueError(signature)
-    (version, flags) = flv.read(2)
+    (version, flags) = read_strict(flv, 2)
     if version != FILE_VERSION:
         raise ValueError(version)
     body = read_int(flv, 4)
@@ -63,7 +63,7 @@ def read_tag_header(flv):
     (flags,) = flags
     length = read_int(flv, 3)
     timestamp = read_int(flv, 3)
-    (extension,) = SBYTE.unpack(flv.read(1))
+    (extension,) = SBYTE.unpack(read_strict(flv, 1))
     streamid = read_int(flv, 3)
     return dict(
         filter=bool(flags >> 5 & 1),
@@ -79,7 +79,7 @@ tag_parsers = dict()
 TAG_AUDIO = 8
 @setitem(tag_parsers, TAG_AUDIO)
 def parse_audio_tag(flv, tag):
-    (flags,) = flv.read(1)
+    (flags,) = read_strict(flv, 1)
     tag["length"] -= 1
     result = dict(
         format=flags >> 4 & 0xF,
@@ -88,7 +88,7 @@ def parse_audio_tag(flv, tag):
         type=flags >> 0 & 1,
     )
     if result["format"] == FORMAT_AAC:
-        (result["aac_type"],) = flv.read(1)
+        (result["aac_type"],) = read_strict(flv, 1)
         tag["length"] -= 1
     return result
 
@@ -98,14 +98,14 @@ AAC_HEADER = 0
 TAG_VIDEO = 9
 @setitem(tag_parsers, TAG_VIDEO)
 def parse_video_tag(flv, tag):
-    (flags,) = flv.read(1)
+    (flags,) = read_strict(flv, 1)
     tag["length"] -= 1
     result = dict(
         frametype=flags >> 4 & 0xF,
         codecid=flags >> 0 & 0xF,
     )
     if result["codecid"] == CODEC_AVC:
-        (result["avc_type"],) = flv.read(1)
+        (result["avc_type"],) = read_strict(flv, 1)
         tag["length"] -= 1
     return result
 
@@ -129,7 +129,7 @@ scriptdatavalue_parsers = dict()
 
 @setitem(scriptdatavalue_parsers, 0)
 def parse_number(stream):
-    (number,) = DOUBLE_BE.unpack(stream.read(DOUBLE_BE.size))
+    (number,) = DOUBLE_BE.unpack(read_strict(stream, DOUBLE_BE.size))
     return number
 DOUBLE_BE = Struct(">d")
 
@@ -140,9 +140,7 @@ def parse_boolean(stream):
 @setitem(scriptdatavalue_parsers, 2)
 def parse_string(stream):
     length = read_int(stream, 2)
-    string = stream.read(length)
-    assert len(string) == length
-    return string
+    return read_strict(stream, length)
 
 @setitem(scriptdatavalue_parsers, 3)
 def parse_object(stream):

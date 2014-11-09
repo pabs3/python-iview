@@ -1,7 +1,7 @@
 import zlib
 from io import BufferedIOBase
 from urllib.parse import quote_plus
-from io import SEEK_CUR
+from io import SEEK_CUR, SEEK_END
 import urllib.request
 from http.client import HTTPConnection
 import http.client
@@ -23,18 +23,22 @@ def xml_text_elements(parent, namespace=""):
 	return d
 
 def read_int(stream, size):
-    bytes = stream.read(size)
-    assert len(bytes) == size
+    bytes = read_strict(stream, size)
     return int.from_bytes(bytes, "big")
 
 def read_string(stream):
     buf = bytearray()
     while True:
-        b = stream.read(1)
-        assert b
+        b = read_strict(stream, 1)
         if not ord(b):
             return buf
         buf.extend(b)
+
+def read_strict(stream, size):
+    data = stream.read(size)
+    if len(data) != size:
+        raise EOFError()
+    return data
 
 value_unsafe = '%+&;#'
 VALUE_SAFE = ''.join(chr(c) for c in range(33, 127)
@@ -76,19 +80,20 @@ class TeeWriter(BufferedIOBase):
 def streamcopy(input, output, length):
     assert length >= 0
     while length:
-        chunk = input.read(min(length, 0x10000))
-        assert chunk
+        chunk = read_strict(input, min(length, 0x10000))
         output.write(chunk)
         length -= len(chunk)
 
 def fastforward(stream, offset):
     assert offset >= 0
     if stream.seekable():
-        stream.seek(offset, SEEK_CUR)
+        pos = stream.seek(offset, SEEK_CUR)
+        if pos > stream.seek(0, SEEK_END):
+            raise EOFError()
+        stream.seek(pos)
     else:
         while offset:
-            chunk = stream.read(min(offset, 0x10000))
-            assert chunk
+            chunk = read_strict(stream, min(offset, 0x10000))
             offset -= len(chunk)
 
 class WritingReader(BufferedIOBase):

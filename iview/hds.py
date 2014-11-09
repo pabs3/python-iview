@@ -26,7 +26,7 @@ from urllib.parse import urljoin
 from io import BytesIO
 from .utils import xml_text_elements
 from . import flvlib
-from .utils import read_int, read_string
+from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
 
 def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
@@ -431,8 +431,9 @@ def read_box_header(stream):
     boxsize = stream.read(4)
     if not boxsize:
         return (None, None)
-    boxtype = stream.read(4)
-    assert len(boxsize) == 4 and len(boxtype) == 4
+    if len(boxsize) != 4:
+        raise EOFError()
+    boxtype = read_strict(stream, 4)
     boxsize = int.from_bytes(boxsize, "big")
     if boxsize == 1:
         boxsize = read_int(stream, 8)
@@ -451,7 +452,7 @@ def swf_hash(url):
         from shorthand import SimpleNamespace
     
     with urlopen(url) as swf:
-        assert swf.read(3) == b"CWS"
+        assert read_strict(swf, 3) == b"CWS"
         
         swf_hash = hmac.new(SWF_VERIFICATION_KEY, digestmod=sha256)
         counter = CounterWriter(SimpleNamespace(write=swf_hash.update))
@@ -462,7 +463,7 @@ def swf_hash(url):
         )
         
         uncompressed.write(b"FWS")
-        uncompressed.write(swf.read(5))
+        uncompressed.write(read_strict(swf, 5))
         with ZlibDecompressorWriter(uncompressed) as decompressor:
             copyfileobj(swf, decompressor)
         
