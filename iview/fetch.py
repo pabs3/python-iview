@@ -131,7 +131,7 @@ class RtmpWorker(threading.Thread):
 	def run(self):
 		with self.job:
 			encoding = getpreferredencoding()
-			progress_pattern = re.compile(br'\d+\.\d%')
+			progress_pattern = re.compile(br'(\d+\.\d)%')
 			size_pattern = re.compile(br'\d+\.\d+ kB',
 				re.IGNORECASE)
 
@@ -142,7 +142,7 @@ class RtmpWorker(threading.Thread):
 				progress_search = progress_pattern.search(r)
 				size_search = size_pattern.search(r)
 				if progress_search is not None:
-					p = float(progress_search.group()[:-1]) / 100. # [:-1] shaves the % off the end
+					p = float(progress_search.group(1)) / 100
 					self.frontend.set_fraction(p)
 				if size_search is not None:
 					self.frontend.set_size(float(size_search.group()[:-3]) * 1024)
