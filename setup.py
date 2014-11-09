@@ -5,5 +5,5 @@ setup(
     version=iview.config.version,
     packages=['iview'],
     scripts=['iview-cli', 'iview-gtk'],
-    data_files=[('/usr/share/applications', ['iview-gtk.desktop']),],
+    data_files=[('/usr/share/applications', ['iview-gtk.desktop'])],
     )
