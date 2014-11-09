@@ -6,16 +6,9 @@ from .utils import setitem
 def main():
     from sys import stdin
     flv = stdin.buffer
-    print("signature", flv.read(3))
-    (version, flags) = flv.read(2)
-    audio = bool(flags & 1 << 2)
-    video = bool(flags & 1 << 0)
-    print("version", version, "audio", audio, "video", video)
-    body = read_int(flv, 4)
-    fastforward(flv, body - 9)
+    print("header", repr(read_file_header(flv)))
     
     while True:
-        fastforward(flv, 4)  # Previous tag size
         tag = read_tag_header(flv)
         if tag is None:
             break
@@ -25,16 +18,33 @@ def main():
         if parser:
             parsed = parser(flv, tag)
             print(" ", repr(parsed))
-        fastforward(flv, tag["length"])
+        fastforward(flv, tag["length"] + 4)  # Including trailing tag size
 
 def write_file_header(flv, audio=True, video=True):
-    counter = CounterWriter(flv)
-    counter.write(b"FLV")  # Signature
-    counter.write(bytes((1,)))  # File version
-    counter.write(bytes((audio << 2 | video << 0,)))
+    flv.write(SIGNATURE)
+    flv.write(bytes((FILE_VERSION,)))
+    flv.write(bytes((audio << 2 | video << 0,)))
+    flv.write(FILE_HEADER_LENGTH.to_bytes(4, "big"))  # Body offset
     
-    flv.write((counter.tell() + 4).to_bytes(4, "big"))  # Body offset
-    flv.write((0).to_bytes(4, "big"))  # Previous tag size
+    flv.write((0).to_bytes(4, "big"))  # Previous tag size field
+
+def read_file_header(flv):
+    signature = flv.read(flv, 3)
+    if signature != SIGNATURE:
+        raise ValueError(signature)
+    (version, flags) = flv.read(2)
+    if version != FILE_VERSION:
+        raise ValueError(version)
+    body = read_int(flv, 4)
+    fastforward(flv, body - FILE_HEADER_LENGTH + 4)  # Skip prev. tag size
+    return dict(
+        audio=bool(flags & 1 << 2),
+        video=bool(flags & 1 << 0),
+    )
+
+SIGNATURE = b"FLV"
+FILE_VERSION = 1
+FILE_HEADER_LENGTH = len(SIGNATURE) + 2 + 4
 
 def write_scriptdata(flv, metadata):
     counter = CounterWriter(flv)
