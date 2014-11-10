@@ -47,28 +47,28 @@ Some usage examples are provided for your perusal.
 This is a purely informational command. It verifies that handshaking is
 working correctly, and shows which streaming host is used.
 
-	$ ./iview-cli --print-auth
-	iView auth data:
-	    Streaming Host: Akamai
-	    RTMP Token: [...]
-	    HDS Token: [...]
-	    Server URL: http://iviewmetered-vh.akamaihd.net/z/
-	    Playpath Prefix: playback/_definst_/
-	    Unmetered: False
+    $ ./iview-cli --print-auth
+    iView auth data:
+        Streaming Host: Akamai
+        RTMP Token: [...]
+        HDS Token: [...]
+        Server URL: http://iviewmetered-vh.akamaihd.net/z/
+        Playpath Prefix: playback/_definst_/
+        Unmetered: False
 
 This can be used to list the iView programmes and
 find a programme’s file name:
 
-	$ ./iview-cli --programme
-	7.30:
-	    7.30 Episode 193 26/11/2013	(news/730s_Tx_2611.mp4)
-	    7.30 25/11/2013	(news/730s_Tx_2511.mp4)
-	    7.30 20/11/2013	(news/730s_Tx_2011.mp4)
-	[...]
+    $ ./iview-cli --programme
+    7.30:
+        7.30 Episode 193 26/11/2013	(news/730s_Tx_2611.mp4)
+        7.30 25/11/2013	(news/730s_Tx_2511.mp4)
+        7.30 20/11/2013	(news/730s_Tx_2011.mp4)
+    [...]
 
 To actually download the programme, use something like the following:
 
-	$ ./iview-cli --download news/730s_Tx_2611.mp4
+    $ ./iview-cli --download news/730s_Tx_2611.mp4
 
 Hopefully that will download an .flv file into your current directory,
 appropriately named. Downloaded files always use the FLV container format,

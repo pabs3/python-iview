@@ -8,290 +8,290 @@ import os.path
 from urllib.error import HTTPError
 
 try:
-	import gi
-	gi.require_version('Gtk', '3.0')
-	gi.require_version('Gdk', '3.0')
-	from gi.repository import Gtk, Gdk
+    import gi
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('Gdk', '3.0')
+    from gi.repository import Gtk, Gdk
 except (ImportError, ValueError):
-	print("""\
+    print("""\
 This program requires the Py G Object and GTK 3 packages; see the readme file""",
-		file=sys.stderr)
-	raise
+        file=sys.stderr)
+    raise
 
 num_windows = 0
 save_location = None
 
 def add_window():
-	global num_windows
-	num_windows += 1
+    global num_windows
+    num_windows += 1
 
 def del_window(widget=None):
-	global num_windows
-	num_windows -= 1
-	if num_windows == 0:
-		Gtk.main_quit()
+    global num_windows
+    num_windows -= 1
+    if num_windows == 0:
+        Gtk.main_quit()
 
 class Frontend:
-	def __init__(self, parent, size):
-		self.parent = parent
-		self.size = size
-		
-		self.resumable = False
-		
-		# Clear any "Download failed" message from previous run
-		self.parent.progress.set_text('')
-		self.parent.progress.set_show_text(True)
-	
-	def set_fraction(self, p):
-		self.size = None  # Stop calculating fraction based on size
-		self.show_fraction(p)
-	
-	def show_fraction(self, p):
-		Gdk.threads_enter()
-		self.parent.progress.set_fraction(p)
-		self.parent.set_title("({:.1%}) {}".format(p, self.parent.my_title))
-		Gdk.threads_leave()
-	
-	def set_size(self, size):
-		size = '{:.1f} MB'.format(size / 1e6)
-		Gdk.threads_enter()
-		self.parent.labels[2][1].set_text(size)
-		Gdk.threads_leave()
-		if self.size:
-			self.show_fraction(size / self.size)
-	
-	def done(self, stopped=False, failed=False):
-		Gdk.threads_enter()
+    def __init__(self, parent, size):
+        self.parent = parent
+        self.size = size
+        
+        self.resumable = False
+        
+        # Clear any "Download failed" message from previous run
+        self.parent.progress.set_text('')
+        self.parent.progress.set_show_text(True)
+    
+    def set_fraction(self, p):
+        self.size = None  # Stop calculating fraction based on size
+        self.show_fraction(p)
+    
+    def show_fraction(self, p):
+        Gdk.threads_enter()
+        self.parent.progress.set_fraction(p)
+        self.parent.set_title("({:.1%}) {}".format(p, self.parent.my_title))
+        Gdk.threads_leave()
+    
+    def set_size(self, size):
+        size = '{:.1f} MB'.format(size / 1e6)
+        Gdk.threads_enter()
+        self.parent.labels[2][1].set_text(size)
+        Gdk.threads_leave()
+        if self.size:
+            self.show_fraction(size / self.size)
+    
+    def done(self, stopped=False, failed=False):
+        Gdk.threads_enter()
 
-		if not stopped and not failed:
-			self.parent.progress.set_fraction(1.)
-			self.parent.progress.set_text('Download finished')
-			self.parent.set_title(self.parent.my_title)
-			self.parent.close_btn.set_label(Gtk.STOCK_CLOSE)
-			self.parent.pause_btn.hide()
-			self.parent.resume_btn.hide()
-		else:
-			if failed:
-				self.parent.progress.set_text('Download failed')
-			self.parent.pause_btn.hide()
-			
-			label = 'Resume' if self.resumable else 'Retry'
-			self.parent.resume_btn.set_label(label)
-			self.parent.resume_btn.show()
+        if not stopped and not failed:
+            self.parent.progress.set_fraction(1.)
+            self.parent.progress.set_text('Download finished')
+            self.parent.set_title(self.parent.my_title)
+            self.parent.close_btn.set_label(Gtk.STOCK_CLOSE)
+            self.parent.pause_btn.hide()
+            self.parent.resume_btn.hide()
+        else:
+            if failed:
+                self.parent.progress.set_text('Download failed')
+            self.parent.pause_btn.hide()
+            
+            label = 'Resume' if self.resumable else 'Retry'
+            self.parent.resume_btn.set_label(label)
+            self.parent.resume_btn.show()
 
-		Gdk.threads_leave()
+        Gdk.threads_leave()
 
 class Downloader(Gtk.Window):
-	def __init__(self, target, title=None, dest_file=None):
-		self.target = target
-		self.dest_file = dest_file
+    def __init__(self, target, title=None, dest_file=None):
+        self.target = target
+        self.dest_file = dest_file
 
-		Gtk.Window.__init__(self)
-		self.connect('destroy', del_window)
-		self.connect('destroy', self.on_destroy)
-		add_window()
+        Gtk.Window.__init__(self)
+        self.connect('destroy', del_window)
+        self.connect('destroy', self.on_destroy)
+        add_window()
 
-		if title is None:
-			title = target['url']
-		self.my_title = dest_file.split("/")[-1]
-		self.set_title(title)
-		self.set_resizable(False)
-		self.set_default_size(400,0)
-		self.set_border_width(10)
+        if title is None:
+            title = target['url']
+        self.my_title = dest_file.split("/")[-1]
+        self.set_title(title)
+        self.set_resizable(False)
+        self.set_default_size(400,0)
+        self.set_border_width(10)
 
-		xpadding = 5
-		ypadding = 2
+        xpadding = 5
+        ypadding = 2
 
-		table = Gtk.Table(3, 3, homogeneous=False)
+        table = Gtk.Table(3, 3, homogeneous=False)
 
-		self.labels = []
-		for i in range(3):
-			label_term = Gtk.Label()
-			label_term.set_alignment(0., 0.5)
-			label_desc = Gtk.Label()
-			label_desc.set_alignment(1., 0.5)
-			self.labels.append([label_term, label_desc])
+        self.labels = []
+        for i in range(3):
+            label_term = Gtk.Label()
+            label_term.set_alignment(0., 0.5)
+            label_desc = Gtk.Label()
+            label_desc.set_alignment(1., 0.5)
+            self.labels.append([label_term, label_desc])
 
-			table.attach(label_term, 0,1, i,i+1, xpadding=xpadding, ypadding=ypadding)
-			table.attach(label_desc, 1,2, i,i+1, xpadding=xpadding, ypadding=ypadding)
+            table.attach(label_term, 0,1, i,i+1, xpadding=xpadding, ypadding=ypadding)
+            table.attach(label_desc, 1,2, i,i+1, xpadding=xpadding, ypadding=ypadding)
 
-		self.labels[0][0].set_text('Name')
-		self.labels[0][1].set_text(title)
-		self.labels[1][0].set_text('Filename')
-		self.labels[1][1].set_text(dest_file.split('/')[-1])
-		self.labels[2][0].set_text('Download size')
-		self.labels[2][1].set_text('0.0 MB')
+        self.labels[0][0].set_text('Name')
+        self.labels[0][1].set_text(title)
+        self.labels[1][0].set_text('Filename')
+        self.labels[1][1].set_text(dest_file.split('/')[-1])
+        self.labels[2][0].set_text('Download size')
+        self.labels[2][1].set_text('0.0 MB')
 
-		self.progress = Gtk.ProgressBar()
-		table.attach(self.progress, 0,2, 3,4, xpadding=xpadding, ypadding=8)
+        self.progress = Gtk.ProgressBar()
+        table.attach(self.progress, 0,2, 3,4, xpadding=xpadding, ypadding=8)
 
-		bb = Gtk.HButtonBox()
-		bb.set_layout(Gtk.ButtonBoxStyle.END)
-		self.pause_btn = Gtk.Button('Pause')
-		self.pause_btn.connect('clicked', self.pause_download)
-		self.resume_btn = Gtk.Button('Resume')
-		self.resume_btn.connect('clicked', self.start_download)
-		self.close_btn = Gtk.Button(stock=Gtk.STOCK_STOP)
-		self.close_btn.connect('clicked', self.destroy)
-		bb.pack_end(self.pause_btn, True, True, 0)
-		bb.pack_end(self.resume_btn, True, True, 0)
-		bb.pack_end(self.close_btn, True, True, 0)
+        bb = Gtk.HButtonBox()
+        bb.set_layout(Gtk.ButtonBoxStyle.END)
+        self.pause_btn = Gtk.Button('Pause')
+        self.pause_btn.connect('clicked', self.pause_download)
+        self.resume_btn = Gtk.Button('Resume')
+        self.resume_btn.connect('clicked', self.start_download)
+        self.close_btn = Gtk.Button(stock=Gtk.STOCK_STOP)
+        self.close_btn.connect('clicked', self.destroy)
+        bb.pack_end(self.pause_btn, True, True, 0)
+        bb.pack_end(self.resume_btn, True, True, 0)
+        bb.pack_end(self.close_btn, True, True, 0)
 
-		vbox = Gtk.VBox()
-		vbox.pack_start(table, False, True, 0)
-		vbox.pack_start(bb, False, True, 0)
-		self.add(vbox)
+        vbox = Gtk.VBox()
+        vbox.pack_start(table, False, True, 0)
+        vbox.pack_start(bb, False, True, 0)
+        self.add(vbox)
 
-		self.show_all()
-		self.start_download() # kick off the DownloadWorker thread
+        self.show_all()
+        self.start_download() # kick off the DownloadWorker thread
 
-	def start_download(self, widget=None):
-		self.resume_btn.hide()
-		
-		frontend = Frontend(self, self.target['size'])
-		self.pause_btn.hide()
-		self.job = iview.fetch.fetch_program(
-			item=self.target,
-			dest_file=self.dest_file,
-			frontend=frontend,
-		)
+    def start_download(self, widget=None):
+        self.resume_btn.hide()
+        
+        frontend = Frontend(self, self.target['size'])
+        self.pause_btn.hide()
+        self.job = iview.fetch.fetch_program(
+            item=self.target,
+            dest_file=self.dest_file,
+            frontend=frontend,
+        )
 
-		if not self.job:
-			message = Gtk.MessageDialog(
-				parent=None,
-				type=Gtk.MessageType.ERROR,
-				buttons=Gtk.ButtonsType.CLOSE)
-			message.set_markup('<big><b>Download backend failed</b></big>\n\n' \
-				'Either the download backend in question failed for some reason, or one could not be found with which to download iView programmes. Please check the README.md file for instructions on setting this up.')
-			message.run()
-			message.destroy()
-			return
+        if not self.job:
+            message = Gtk.MessageDialog(
+                parent=None,
+                type=Gtk.MessageType.ERROR,
+                buttons=Gtk.ButtonsType.CLOSE)
+            message.set_markup('<big><b>Download backend failed</b></big>\n\n' \
+                'Either the download backend in question failed for some reason, or one could not be found with which to download iView programmes. Please check the README.md file for instructions on setting this up.')
+            message.run()
+            message.destroy()
+            return
 
-		if frontend.resumable:
-			self.pause_btn.show()
-		self.job.start()
+        if frontend.resumable:
+            self.pause_btn.show()
+        self.job.start()
 
-	def pause_download(self, widget=None):
-		self.job.terminate()
+    def pause_download(self, widget=None):
+        self.job.terminate()
 
-	def on_destroy(self, widget=None):
-		self.job.terminate()
+    def on_destroy(self, widget=None):
+        self.job.terminate()
 
-	def destroy(self, null_param=None):
-		"""	Allow destroy() to be called with a parameter, thus allowing it to
-			be attached to the "clicked" event of a button.
-		"""
-		Gtk.Window.destroy(self)
+    def destroy(self, null_param=None):
+        """Allow destroy() to be called with a parameter, thus allowing it to
+        be attached to the "clicked" event of a button.
+        """
+        Gtk.Window.destroy(self)
 
 def on_download_clicked(widget, data=None):
-	global window, save_location
+    global window, save_location
 
-	model, selected_iter = listing.get_selection().get_selected()
-	if selected_iter is None:
-		return
-	item = model[selected_iter]
-	if item is None or 'id' in item[1]:  # Series, or loading placeholder
-		return
+    model, selected_iter = listing.get_selection().get_selected()
+    if selected_iter is None:
+        return
+    item = model[selected_iter]
+    if item is None or 'id' in item[1]:  # Series, or loading placeholder
+        return
 
-	save_dialog = Gtk.FileChooserDialog('Save Video',
-		parent=window,
-		action=Gtk.FileChooserAction.SAVE,
-		buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-		         Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
+    save_dialog = Gtk.FileChooserDialog('Save Video',
+        parent=window,
+        action=Gtk.FileChooserAction.SAVE,
+        buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                 Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
 
-	if save_location is None:
-		home = os.path.expanduser("~")
-		if home != "~":
-			save_location = home
-	if save_location is not None:
-		save_dialog.set_current_folder(save_location)
+    if save_location is None:
+        home = os.path.expanduser("~")
+        if home != "~":
+            save_location = home
+    if save_location is not None:
+        save_dialog.set_current_folder(save_location)
 
-	# build a nice filename
-	# could use this ugly version instead:
-	#   filename = iview.fetch.get_filename(item[1]['url'])
-	# TODO: This may hamper (future) GTK+-based subtitle downloading unless
-	# this is made into a shared function
+    # build a nice filename
+    # could use this ugly version instead:
+    #   filename = iview.fetch.get_filename(item[1]['url'])
+    # TODO: This may hamper (future) GTK+-based subtitle downloading unless
+    # this is made into a shared function
 
-	program = model.get_value(model.iter_parent(selected_iter), 0)
-	title = item[0]
-	url = item[1]['url']
-	filename = iview.fetch.descriptive_filename(program, title, url)
-	if save_location is not None:
-		# Method to increment file names inside brackets
-		count = 1
-		[root, ext] = os.path.splitext(filename)
-		# increment numbers until the file doesn't exist
-		while os.path.exists(os.path.join(save_location, filename)):
-			filename = "{} ({}){}".format(root, count, ext)
-			count = count + 1
-	save_dialog.set_current_name(filename)
+    program = model.get_value(model.iter_parent(selected_iter), 0)
+    title = item[0]
+    url = item[1]['url']
+    filename = iview.fetch.descriptive_filename(program, title, url)
+    if save_location is not None:
+        # Method to increment file names inside brackets
+        count = 1
+        [root, ext] = os.path.splitext(filename)
+        # increment numbers until the file doesn't exist
+        while os.path.exists(os.path.join(save_location, filename)):
+            filename = "{} ({}){}".format(root, count, ext)
+            count = count + 1
+    save_dialog.set_current_name(filename)
 
-	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
-	save_response = save_dialog.run()
+    save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
+    save_response = save_dialog.run()
 
-	if save_response == Gtk.ResponseType.OK:
-		dest_file = save_dialog.get_filename()
-		new_location = save_dialog.get_current_folder()
-		if new_location is not None:
-			save_location = new_location
-		Downloader(item[1], item[0], dest_file)
+    if save_response == Gtk.ResponseType.OK:
+        dest_file = save_dialog.get_filename()
+        new_location = save_dialog.get_current_folder()
+        if new_location is not None:
+            save_location = new_location
+        Downloader(item[1], item[0], dest_file)
 
-	save_dialog.hide()
-	save_dialog.destroy()
+    save_dialog.hide()
+    save_dialog.destroy()
 
 def on_listing_cursor_changed(selection):
-	global description
+    global description
 
-	description.set_text('')
-	download_btn.set_sensitive(False)
+    description.set_text('')
+    download_btn.set_sensitive(False)
 
-	model, selected_iter = selection.get_selected()
-	if selected_iter is None:
-		return
-	item = model.get_value(selected_iter, 1)
-	if item is None or 'id' in item:  # Series or unloaded episode
-		return
+    model, selected_iter = selection.get_selected()
+    if selected_iter is None:
+        return
+    item = model.get_value(selected_iter, 1)
+    if item is None or 'id' in item:  # Series or unloaded episode
+        return
 
-	description.set_text(item['description'])
-	download_btn.set_sensitive(True)
+    description.set_text(item['description'])
+    download_btn.set_sensitive(True)
 
 def load_programme():
-	global programme
+    global programme
 
-	for series in iview.comm.get_index():
-		item = [series['title'], dict(id=series['id'])]
-		series_iter = programme.append(None, item)
-		programme.append(series_iter, ['Loading...', None])
+    for series in iview.comm.get_index():
+        item = [series['title'], dict(id=series['id'])]
+        series_iter = programme.append(None, item)
+        programme.append(series_iter, ['Loading...', None])
 
 def load_series_items(widget, iter, path):
-	model = widget.get_model()
-	child = model.iter_children(iter)
+    model = widget.get_model()
+    child = model.iter_children(iter)
 
-	if model.get_value(child, 1) is not None:
-		# This is not a "Loading..." item, so we've already fetched this.
-		# Better pull out.
-		return
+    if model.get_value(child, 1) is not None:
+        # This is not a "Loading..." item, so we've already fetched this.
+        # Better pull out.
+        return
 
-	series_id = model.get_value(iter, 1)['id']
-	items = iview.comm.get_series_items(series_id)
+    series_id = model.get_value(iter, 1)['id']
+    items = iview.comm.get_series_items(series_id)
 
-	for item in items:
-		target = dict(
-			url=item['url'],
-			description=item['description'],
-			size=item.get('size'),
-		)
-		model.append(iter, [item['title'], target])
+    for item in items:
+        target = dict(
+            url=item['url'],
+            description=item['description'],
+            size=item.get('size'),
+        )
+        model.append(iter, [item['title'], target])
 
-	model.remove(child)
+    model.remove(child)
 
 def about(widget, data=None):
-	d = Gtk.AboutDialog()
+    d = Gtk.AboutDialog()
 
-	d.set_version(iview.config.version)
-	d.set_copyright(
-		'Copyright \N{COPYRIGHT SIGN} 2009-2010 by Jeremy Visser')
-	d.set_license("""This program is free software: you can redistribute it and/or modify
+    d.set_version(iview.config.version)
+    d.set_copyright(
+        'Copyright \N{COPYRIGHT SIGN} 2009-2010 by Jeremy Visser')
+    d.set_license("""This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
@@ -304,112 +304,112 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.""")
 
-	d.run()
-	d.destroy()
+    d.run()
+    d.destroy()
 
 def main():
-	# Seems to be necessary for other threads to be scheduled properly.
-	# Hinted at
-	# http://stackoverflow.com/questions/8120860/python-doing-some-work-on-background-with-gtk-gui
-	from gi.repository import GLib
-	GLib.threads_init()
+    # Seems to be necessary for other threads to be scheduled properly.
+    # Hinted at
+    # http://stackoverflow.com/questions/8120860/python-doing-some-work-on-background-with-gtk-gui
+    from gi.repository import GLib
+    GLib.threads_init()
 
-	Gdk.threads_init()
+    Gdk.threads_init()
 
-	global window
-	window = Gtk.Window()
-	window.set_title('iView')
-	window.set_default_size(400,450)
-	window.set_border_width(5)
-	window.connect('destroy', del_window)
-	add_window()
+    global window
+    window = Gtk.Window()
+    window.set_title('iView')
+    window.set_default_size(400,450)
+    window.set_border_width(5)
+    window.connect('destroy', del_window)
+    add_window()
 
-	vbox = Gtk.VBox()
+    vbox = Gtk.VBox()
 
-	programme_label = Gtk.Label()
-	programme_label.set_markup('<big><b>iView Programme</b></big>')
+    programme_label = Gtk.Label()
+    programme_label.set_markup('<big><b>iView Programme</b></big>')
 
-	vbox.pack_start(programme_label, False, True, 0)
+    vbox.pack_start(programme_label, False, True, 0)
 
-	listing_scroller = Gtk.ScrolledWindow()
-	listing_scroller.set_policy(
-		Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-	listing_scroller.set_shadow_type(Gtk.ShadowType.IN)
+    listing_scroller = Gtk.ScrolledWindow()
+    listing_scroller.set_policy(
+        Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    listing_scroller.set_shadow_type(Gtk.ShadowType.IN)
 
-	# Columns: 0=name, 1=target.
-	# Target has 'id' key only for series items, and
-	# is None for the unloaded episode marker.
-	global programme
-	programme = Gtk.TreeStore(str, object)
+    # Columns: 0=name, 1=target.
+    # Target has 'id' key only for series items, and
+    # is None for the unloaded episode marker.
+    global programme
+    programme = Gtk.TreeStore(str, object)
 
-	global listing
-	listing = Gtk.TreeView(programme)
-	listing.set_headers_visible(False)
-	selection = listing.get_selection()
-	selection.set_mode(Gtk.SelectionMode.SINGLE)
-	selection.connect('changed', on_listing_cursor_changed)
-	listing.connect('row-expanded', load_series_items)
+    global listing
+    listing = Gtk.TreeView(programme)
+    listing.set_headers_visible(False)
+    selection = listing.get_selection()
+    selection.set_mode(Gtk.SelectionMode.SINGLE)
+    selection.connect('changed', on_listing_cursor_changed)
+    listing.connect('row-expanded', load_series_items)
 
-	tvcolumn = Gtk.TreeViewColumn('Program Name')
-	listing.append_column(tvcolumn)
-	cell = Gtk.CellRendererText()
-	tvcolumn.pack_start(cell, True)
-	tvcolumn.add_attribute(cell, 'text', 0)
+    tvcolumn = Gtk.TreeViewColumn('Program Name')
+    listing.append_column(tvcolumn)
+    cell = Gtk.CellRendererText()
+    tvcolumn.pack_start(cell, True)
+    tvcolumn.add_attribute(cell, 'text', 0)
 
-	listing_scroller.set_border_width(5)
+    listing_scroller.set_border_width(5)
 
-	listing_scroller.add(listing)
-	vbox.pack_start(listing_scroller, True, True, 0)
+    listing_scroller.add(listing)
+    vbox.pack_start(listing_scroller, True, True, 0)
 
-	global description
-	description = Gtk.Label()
-	description.set_line_wrap(True)
-	vbox.pack_start(description, False, True, 0)
+    global description
+    description = Gtk.Label()
+    description.set_line_wrap(True)
+    vbox.pack_start(description, False, True, 0)
 
-	bb = Gtk.HButtonBox()
-	bb.set_layout(Gtk.ButtonBoxStyle.EDGE)
-	bb.set_border_width(5)
+    bb = Gtk.HButtonBox()
+    bb.set_layout(Gtk.ButtonBoxStyle.EDGE)
+    bb.set_border_width(5)
 
-	about_btn = Gtk.Button(stock=Gtk.STOCK_ABOUT)
-	about_btn.connect('clicked', about)
-	
-	global download_btn
-	download_btn = Gtk.Button('Download')
-	download_btn.set_sensitive(False)
-	download_btn.connect('clicked', on_download_clicked)
+    about_btn = Gtk.Button(stock=Gtk.STOCK_ABOUT)
+    about_btn.connect('clicked', about)
+    
+    global download_btn
+    download_btn = Gtk.Button('Download')
+    download_btn.set_sensitive(False)
+    download_btn.connect('clicked', on_download_clicked)
 
-	bb.pack_start(about_btn, True, True, 0)
-	bb.pack_start(download_btn, True, True, 0)
+    bb.pack_start(about_btn, True, True, 0)
+    bb.pack_start(download_btn, True, True, 0)
 
-	vbox.pack_start(bb, False, True, 0)
+    vbox.pack_start(bb, False, True, 0)
 
-	window.add(vbox)
+    window.add(vbox)
 
-	if len(sys.argv) >= 2 and sys.argv[1] in ('-c', '--cache'):
-		iview.config.cache = sys.argv[2]
+    if len(sys.argv) >= 2 and sys.argv[1] in ('-c', '--cache'):
+        iview.config.cache = sys.argv[2]
 
-	try:
-		iview.comm.get_config()
-		load_programme()
-	except HTTPError as error:
-		message = Gtk.MessageDialog(
-			parent=window,
-			message_type=Gtk.MessageType.ERROR,
-			buttons=Gtk.ButtonsType.CLOSE)
-		message.set_markup('<big><b>Download failed</b></big>\n\n'
-			'Could not retrieve an important configuration file from iView.'
-			' Please make sure'
-			' you are connected to the Internet.\n\n'
-			'If iView works fine in your web browser, then'
-			' the iView API has most likely changed.'
-			' Try and find an updated version of this program,'
-			' or contact the author.\n\n'
-			'URL: {}'.format(error.url))
-		message.run()
-		sys.exit(1)
+    try:
+        iview.comm.get_config()
+        load_programme()
+    except HTTPError as error:
+        message = Gtk.MessageDialog(
+            parent=window,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.CLOSE)
+        message.set_markup('<big><b>Download failed</b></big>\n\n'
+            'Could not retrieve an important configuration file from iView.'
+            ' Please make sure'
+            ' you are connected to the Internet.\n\n'
+            'If iView works fine in your web browser, then'
+            ' the iView API has most likely changed.'
+            ' Try and find an updated version of this program,'
+            ' or contact the author.\n\n'
+            'URL: {}'.format(error.url))
+        message.run()
+        sys.exit(1)
 
-	window.show_all()
-	Gtk.main()
+    window.show_all()
+    Gtk.main()
 
 if __name__ == "__main__":
-	main()
+    main()
