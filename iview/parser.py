@@ -80,7 +80,6 @@ def parse_series_api(soup):
     items are things like 'beached az Episode 8'.
     """
     
-    # TODO: Check charset from HTTP response or cache
     index_json = json.loads(soup.decode("UTF-8"))
     
     # alphabetically sort by title
