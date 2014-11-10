@@ -105,8 +105,8 @@ See the README.md file for more information about setting this up properly.""",
     return False
 
 def readupto(fh, upto):
-    """    Reads up to (and not including) the character
-        specified by arg 'upto'.
+    """Reads up to (and not including) the character
+    specified by arg 'upto'.
     """
     result = bytearray()
     while True:

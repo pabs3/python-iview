@@ -12,8 +12,8 @@ from .utils import http_get
 iview_config = None
 
 def fetch_url(url, types=None):
-    """    Simple function that fetches a URL using urllib.
-        An exception is raised if an error (e.g. 404) occurs.
+    """Simple function that fetches a URL using urllib.
+    An exception is raised if an error (e.g. 404) occurs.
     """
     url = urljoin(config.base_url, url)
     headers = iview_config['headers']
@@ -33,10 +33,10 @@ def fetch_url(url, types=None):
                 return http.read()
 
 def maybe_fetch(url, type=None):
-    """    Only fetches a URL if it is not in the cache directory.
-        In practice, this is really bad, and only useful for saving
-        bandwidth when debugging. For one, it doesn't respect
-        HTTP's wishes. Also, iView, by its very nature, changes daily.
+    """Only fetches a URL if it is not in the cache directory.
+    In practice, this is really bad, and only useful for saving
+    bandwidth when debugging. For one, it doesn't respect
+    HTTP's wishes. Also, iView, by its very nature, changes daily.
     """
 
     if not config.cache:
@@ -58,9 +58,9 @@ def maybe_fetch(url, type=None):
     return data
 
 def get_config(headers=()):
-    """    This function fetches the iView "config". Among other things,
-        it tells us an always-metered "fallback" RTMP server, and points
-        us to many of iView's other XML files.
+    """This function fetches the iView "config". Among other things,
+    it tells us an always-metered "fallback" RTMP server, and points
+    us to many of iView's other XML files.
     """
     global iview_config
 
@@ -78,10 +78,10 @@ def get_config(headers=()):
     iview_config.update(parsed)
 
 def get_auth():
-    """ This function performs an authentication handshake with iView.
-        Among other things, it tells us if the connection is unmetered,
-        and gives us a one-time token we need to use to speak RTSP with
-        ABC's servers, and tells us what the RTMP URL is.
+    """This function performs an authentication handshake with iView.
+    Among other things, it tells us if the connection is unmetered,
+    and gives us a one-time token we need to use to speak RTSP with
+    ABC's servers, and tells us what the RTMP URL is.
     """
     auth = iview_config['auth_url']
     if config.ip:
@@ -101,19 +101,19 @@ def get_categories():
     return categories
 
 def get_index():
-    """    This function pulls in the index, which contains the TV series
-        that are available to us. Returns a list of "dict" objects,
-        one for each series.
+    """This function pulls in the index, which contains the TV series
+    that are available to us. Returns a list of "dict" objects,
+    one for each series.
     """
     return series_api('seriesIndex')
 
 def get_series_items(series_id, get_meta=False):
-    """    This function fetches the series detail page for the selected series,
-        which contain the items (i.e. the actual episodes). By
-        default, returns a list of "dict" objects, one for each
-        episode. If "get_meta" is set, returns a tuple with the first
-        element being the list of episodes, and the second element a
-        "dict" object of series infomation.
+    """This function fetches the series detail page for the selected series,
+    which contain the items (i.e. the actual episodes). By
+    default, returns a list of "dict" objects, one for each
+    episode. If "get_meta" is set, returns a tuple with the first
+    element being the list of episodes, and the second element a
+    "dict" object of series infomation.
     """
 
     series = series_api('series', series_id)
@@ -147,9 +147,9 @@ def get_highlights():
     return parser.parse_highlights(highlightXML)
 
 def get_captions(url):
-    """    This function takes a program name (e.g. news/730report_100803) and
-        fetches the corresponding captions file. It then passes it to
-        parse_subtitle(), which converts it to SRT format.
+    """This function takes a program name (e.g. news/730report_100803) and
+    fetches the corresponding captions file. It then passes it to
+    parse_subtitle(), which converts it to SRT format.
     """
 
     captions_url = '{}{}.xml'.format(iview_config['captions_url'], url)
@@ -159,10 +159,10 @@ def get_captions(url):
     return parser.parse_captions(xml)
 
 def configure_socks_proxy():
-    """    Import the modules necessary to support usage of a SOCKS proxy
-        and configure it using the current settings in iview.config
-        NOTE: It would be safe to call this function multiple times
-        from, say, a GTK settings dialog
+    """Import the modules necessary to support usage of a SOCKS proxy
+    and configure it using the current settings in iview.config
+    NOTE: It would be safe to call this function multiple times
+    from, say, a GTK settings dialog
     """
     try:
         import socks

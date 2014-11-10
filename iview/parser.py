@@ -7,9 +7,9 @@ from .utils import xml_text_elements
 import sys
 
 def parse_config(soup):
-    """    There are lots of goodies in the config we get back from the ABC.
-        In particular, it gives us the URLs of all the other XML data we
-        need.
+    """There are lots of goodies in the config we get back from the ABC.
+    In particular, it gives us the URLs of all the other XML data we
+    need.
     """
 
     xml = XML(soup)
@@ -33,9 +33,9 @@ def parse_config(soup):
     return params
 
 def parse_auth(soup, iview_config):
-    """    There are lots of goodies in the auth handshake we get back,
-        including the streaming server URL, auth tokens,
-        and whether the connection is unmetered.
+    """There are lots of goodies in the auth handshake we get back,
+    including the streaming server URL, auth tokens,
+    and whether the connection is unmetered.
     """
 
     xml = XML(soup)
@@ -74,10 +74,10 @@ def parse_auth(soup, iview_config):
     return auth
 
 def parse_series_api(soup):
-    """    This function parses the index, which is an overall listing
-        of all programs available in iView. The index is divided into
-        'series' and 'items'. Series are things like 'beached az', while
-        items are things like 'beached az Episode 8'.
+    """This function parses the index, which is an overall listing
+    of all programs available in iView. The index is divided into
+    'series' and 'items'. Series are things like 'beached az', while
+    items are things like 'beached az Episode 8'.
     """
     
     # TODO: Check charset from HTTP response or cache
@@ -251,8 +251,8 @@ def series_categories(categories, series):
             yield category
 
 def parse_captions(soup):
-    """    Converts custom iView captions into SRT format, usable in most
-        decent media players.
+    """Converts custom iView captions into SRT format, usable in most
+    decent media players.
     """
     
     # Horrible hack to escape literal ampersands, which have been seen in
