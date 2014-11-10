@@ -40,6 +40,38 @@ class TestCli(TestCase):
             proxy = "localhost:1080"
             self.assertIsNone(self.iview_cli.parse_proxy_argument(proxy),
                 "Proxy setup failed")
+    
+    def test_batch(self):
+        with TemporaryDirectory(prefix="python-iview.") as dir:
+            batch = os.path.join(dir, "batch.cfg")
+            with open(batch, "w", encoding="ascii") as file:
+                file.write(
+                    "[batch]\n"
+                    "destination: {}\n"
+                    "100: Dummy series\n".format(dir)
+                )
+            class comm:
+                def get_config():
+                    pass
+                def get_series_items(id):
+                    return (dict(url="programme.mp4", title="Dummy title"),)
+            def fetch_program(url, *, execvp, dest_file, quiet):
+                nonlocal fetched
+                fetched = dest_file
+            with substattr(self.iview_cli.iview, comm), \
+            substattr(self.iview_cli.iview.fetch, fetch_program), \
+            substattr(self.iview_cli, "stderr", StringIO()):
+                self.addCleanup(os.chdir, os.getcwd())
+                
+                fetched = None
+                self.iview_cli.batch(batch)
+                self.assertEqual("Dummy series - Dummy title.flv", fetched)
+                
+                with open(fetched, "wb"):
+                    pass
+                fetched = None
+                self.iview_cli.batch(batch)
+                self.assertIsNone(fetched, "Programme downloaded twice")
 
 class TestF4v(TestCase):
     def test_read_box(self):
