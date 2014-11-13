@@ -1,4 +1,4 @@
-from .utils import fastforward, CounterWriter
+from .utils import fastforward
 from struct import Struct
 from .utils import read_int, read_strict
 from .utils import setitem
@@ -47,14 +47,13 @@ FILE_VERSION = 1
 FILE_HEADER_LENGTH = len(SIGNATURE) + 2 + 4
 
 def write_scriptdata(flv, metadata):
-    counter = CounterWriter(flv)
-    counter.write(bytes((TAG_SCRIPTDATA,)))
-    counter.write(len(metadata).to_bytes(3, "big"))
-    counter.write((0).to_bytes(3, "big"))  # Timestamp
-    counter.write(bytes((0,)))  # Timestamp extension
-    counter.write((0).to_bytes(3, "big"))  # Stream id
-    counter.write(metadata)
-    flv.write(counter.tell().to_bytes(4, "big"))
+    flv.write(bytes((TAG_SCRIPTDATA,)))
+    flv.write(len(metadata).to_bytes(3, "big"))
+    flv.write((0).to_bytes(3, "big"))  # Timestamp
+    flv.write(bytes((0,)))  # Timestamp extension
+    flv.write((0).to_bytes(3, "big"))  # Stream id
+    flv.write(metadata)
+    flv.write((TAG_HEADER_LENGTH + len(metadata)).to_bytes(4, "big"))
 
 def read_tag_header(flv):
     flags = flv.read(1)
@@ -73,6 +72,8 @@ def read_tag_header(flv):
         streamid=streamid,
     )
 SBYTE = Struct("=b")
+
+TAG_HEADER_LENGTH = 1 + 3 + 3 + 1 + 3
 
 tag_parsers = dict()
 
