@@ -204,8 +204,10 @@ def on_download_clicked(widget, data=None):
 		# set the default location if there isn't a previous download
 		if os.name == 'nt':
 			save_location = os.getenv("userprofile")
+			save_dialog.set_current_folder(save_location)
 		elif os.name == 'posix':
 			save_location = os.getenv("HOME")
+			save_dialog.set_current_folder(save_location)
 
 	# build a nice filename
 	# could use this ugly version instead:
