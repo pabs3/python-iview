@@ -4,7 +4,7 @@ import iview.config
 import iview.comm
 import iview.fetch
 import sys
-import os
+import os.path
 from urllib.error import HTTPError
 
 try:
@@ -198,16 +198,12 @@ def on_download_clicked(widget, data=None):
 		buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
 		         Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
 
+	if save_location is None:
+		home = os.path.expanduser("~")
+		if home != "~":
+			save_location = home
 	if save_location is not None:
 		save_dialog.set_current_folder(save_location)
-	else:
-		# set the default location if there isn't a previous download
-		if os.name == 'nt':
-			save_location = os.getenv("userprofile")
-			save_dialog.set_current_folder(save_location)
-		elif os.name == 'posix':
-			save_location = os.getenv("HOME")
-			save_dialog.set_current_folder(save_location)
 
 	# build a nice filename
 	# could use this ugly version instead:
