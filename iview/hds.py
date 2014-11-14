@@ -32,7 +32,7 @@ from .utils import xml_text_elements
 from . import flvlib
 from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
-from errno import ESPIPE, EBADF
+from errno import ESPIPE, EBADF, EINVAL
 import os
 from itertools import chain
 
@@ -232,6 +232,7 @@ def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
     
     flv = CounterWriter(dest_file)  # Track size even if piping to stdout
     
+    possibly_trunc(dest_file)
     # Assume audio and video tags will be present
     flvlib.write_file_header(flv, audio=True, video=True)
     
@@ -643,6 +644,16 @@ def read_box_header(stream):
         boxsize -= 8
     assert boxsize >= 0
     return (boxtype, boxsize)
+
+def possibly_trunc(file):
+    """Truncate a file if supported by the file type"""
+    try:
+        file.truncate()
+    except io.UnsupportedOperation:
+        pass
+    except EnvironmentError as err:
+        if err.errno not in {ESPIPE, EBADF, EINVAL}:
+            raise
 
 SWF_VERIFICATION_KEY = b"Genuine Adobe Flash Player 001"
 
