@@ -217,18 +217,13 @@ def on_download_clicked(widget, data=None):
 	url = item[1]['url']
 	filename = iview.fetch.descriptive_filename(program, title, url)
 	if save_location is not None:
-		if os.path.isfile(os.path.join(save_location, filename)):
-			# simple method adding '~Duplicate' to the filename
-			#filename = filename[:-4] + '~Duplicate' + filename[-4:]
-			# Method to increment file names inside brackets
-			count = 1
-			tmpfile = filename[:-4]
-			tmpext = filename[-4:]
-			# increment numbers until the file doesn't exist
-			while os.path.exists(os.path.join(save_location, filename)):
-				filename = "{} ({}){}".format(
-					tmpfile, count, tmpext)
-				count = count + 1
+		# Method to increment file names inside brackets
+		count = 1
+		[root, ext] = os.path.splitext(filename)
+		# increment numbers until the file doesn't exist
+		while os.path.exists(os.path.join(save_location, filename)):
+			filename = "{} ({}){}".format(root, count, ext)
+			count = count + 1
 	save_dialog.set_current_name(filename)
 
 	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
