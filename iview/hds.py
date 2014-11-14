@@ -61,14 +61,15 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         bootstrap = get_bootstrap(media,
             session=session, url=url, player=player)
         
+        metadata = media.get("metadata")
+        flv = start_flv(dest_file, metadata)
+        
         media_url = media["url"] + bootstrap["movie_identifier"]
         if "highest_quality" in bootstrap:
             media_url += bootstrap["highest_quality"]
         if "server_base_url" in bootstrap:
             media_url = urljoin(bootstrap["server_base_url"], media_url)
         media_url = urljoin(url, media_url)
-        
-        metadata = media.get("metadata")
         
         if not duration:
             if bootstrap["time"]:
@@ -77,14 +78,6 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
                 scriptdata = flvlib.parse_scriptdata(BytesIO(metadata))
                 assert scriptdata["name"] == b"onMetaData"
                 duration = scriptdata["value"].get("duration")
-        
-        flv = CounterWriter(dest_file)  # Track size even if piping to stdout
-        
-        # Assume audio and video tags will be present
-        flvlib.write_file_header(flv, audio=True, video=True)
-        
-        if metadata:
-            flvlib.write_scriptdata(flv, metadata)
         
         progress_update(frontend, flv, 0, duration)
         
@@ -232,6 +225,17 @@ def get_bootstrap(media, *, session, url, player=None):
         raise LookupError(fmt.format(result.get("highest_quality")))
     
     return result
+
+def start_flv(dest_file, metadata):
+    """Write out start of FLV"""
+    flv = CounterWriter(dest_file)  # Track size even if piping to stdout
+    
+    # Assume audio and video tags will be present
+    flvlib.write_file_header(flv, audio=True, video=True)
+    
+    if metadata:
+        flvlib.write_scriptdata(flv, metadata)
+    return flv
 
 def iter_segs(seg_runs):
     # For each run of segments
