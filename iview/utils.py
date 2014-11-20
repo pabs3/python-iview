@@ -166,8 +166,7 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
             # If the server closed the connection,
             # by calling close() or shutdown(SHUT_WR),
             # before receiving a short request (<= 1 MB),
-            # the "http.client" module raises a BadStatusLine exception
-            # with the "line" attribute set to repr("")!
+            # the "http.client" module raises a BadStatusLine exception.
             # 
             # To produce EPIPE:
             # 1. server: close() or shutdown(SHUT_RDWR)
@@ -184,14 +183,10 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
             # 1. client: send(finite data)
             # 2. server: close() without reading all data
             # 3. client: send()
-            connerrnos = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
-            if not any((
-                isinstance(err, http.client.BadStatusLine) and
-                    err.line == repr(""),
-                isinstance(err, ConnectionError),
-                isinstance(err, EnvironmentError) and
-                    err.errno in connerrnos,
-            )):
+            errnos = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
+            if (isinstance(err, EnvironmentError) and
+                    not isinstance(err, ConnectionError) and
+                    err.errno not in errnos):
                 raise
             idempotents = {
                 "GET", "HEAD", "PUT", "DELETE", "TRACE", "OPTIONS"}
