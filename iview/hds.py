@@ -8,6 +8,10 @@ Other implementations:
     https://github.com/ottomatic/ffmpeg/blob/hds/libavformat/hdsdec.c
 * https://github.com/pacomod/replaydlr/blob/master/src/DownloaderF4m.py
     (originally PluzzDl.py)
+
+Flash Video Specification 10.1
+(including FLV, bootstrap, and fragment formats):
+http://download.macromedia.com/f4v/video_file_format_spec_v10_1.pdf
 """
 
 import xml.etree.cElementTree as ElementTree
