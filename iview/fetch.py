@@ -264,7 +264,9 @@ class HdsThread(threading.Thread):
 def hds_open_file(*pos, dest_file, **kw):
 	'''Handle special file name "-" representing "stdout"'''
 	if dest_file == "-":
-		return hds.fetch(*pos, dest_file=sys.stdout.buffer, **kw)
+		dest_file = sys.stdout.detach()
+		sys.stdout = None
 	else:
-		with open(dest_file, "wb") as dest_file:
-			return hds.fetch(*pos, dest_file=dest_file, **kw)
+		dest_file = open(dest_file, "wb")
+	with dest_file:
+		return hds.fetch(*pos, dest_file=dest_file, **kw)
