@@ -92,8 +92,9 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             if player:
                 frag_url = urljoin(frag_url, "?" + player)
             response = http_get(session, frag_url, ("video/f4f",))
+            buffer = io.BytesIO()
             
-            while True:
+            for _ in range(100):
                 if abort and abort.is_set():
                     raise SystemExit()
                 (boxtype, boxsize) = read_box_header(response)
@@ -132,17 +133,23 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
                             tag["length"] += 4  # Trailing tag size field
                             if skip:
                                 fastforward(response, tag["length"])
+                            elif tag["length"] > 10e6:
+                                raise OverflowError("FLV tag over 10 MB")
                             else:
-                                flv.write(cache.getvalue())
-                                streamcopy(response, flv, tag["length"])
+                                buffer.write(cache.getvalue())
+                                streamcopy(response, buffer, tag["length"])
                             boxsize -= tag["length"]
                             assert boxsize >= 0
                     
-                    streamcopy(response, flv, boxsize)
+                    streamcopy(response, buffer, boxsize)
                     first = False
                 else:
                     fastforward(response, boxsize)
+            else:
+                raise OverflowError("100 or more boxes in fragment")
             
+            buffer.seek(0)
+            copyfileobj(buffer, flv)
             endtime /= bootstrap["frag_timescale"]
             progress_update(frontend, flv, endtime, duration)
         if not frontend:
