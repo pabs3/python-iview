@@ -5,19 +5,24 @@ from .utils import setitem
 
 def main():
     from sys import stdin
+    
+    def dump(dict):
+        items = ("{}: {!r}".format(n, v) for [n, v] in sorted(dict.items()))
+        return "; ".join(items)
+    
     flv = stdin.buffer
-    print("header", repr(read_file_header(flv)))
+    print("header", dump(read_file_header(flv)))
     
     while True:
         tag = read_tag_header(flv)
         if tag is None:
             break
-        print(repr(tag))
+        print(dump(tag))
         
         parser = tag_parsers.get(tag["type"])
         if parser:
             parsed = parser(flv, tag)
-            print(" ", repr(parsed))
+            print(" ", dump(parsed))
         fastforward(flv, tag["length"] + 4)  # Including trailing tag size
 
 def write_file_header(flv, audio=True, video=True):
