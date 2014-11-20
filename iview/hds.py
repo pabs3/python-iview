@@ -166,9 +166,7 @@ def get_bootstrap(media, *, session, url, player=None):
         bsurl = urljoin(url, bsurl)
         if player:
             bsurl = urljoin(bsurl, "?" + player)
-        with session.open(bsurl) as response:
-            type = response.info().get("Content-Type")
-            print("Bootstrap Content-Type: {}".format(type), file=stderr)
+        with http_get(session, bsurl, "video/abst") as response:
             bootstrap = response.read()
     else:
         bootstrap = BytesIO(bootstrap["data"])
