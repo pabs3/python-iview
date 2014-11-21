@@ -4,6 +4,7 @@ import iview.config
 import iview.comm
 import iview.fetch
 import sys
+import os.path
 from urllib.error import HTTPError
 
 try:
@@ -197,9 +198,13 @@ def on_download_clicked(widget, data=None):
 		buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
 		         Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
 
+	if save_location is None:
+		home = os.path.expanduser("~")
+		if home != "~":
+			save_location = home
 	if save_location is not None:
 		save_dialog.set_current_folder(save_location)
-	
+
 	# build a nice filename
 	# could use this ugly version instead:
 	#   filename = iview.fetch.get_filename(item[1]['url'])
@@ -210,6 +215,18 @@ def on_download_clicked(widget, data=None):
 	title = item[0]
 	url = item[1]['url']
 	filename = iview.fetch.descriptive_filename(program, title, url)
+	if save_location is not None:
+		if os.path.isfile(os.path.join(save_location, filename)):
+			# simple method adding '~Duplicate' to the filename
+			#filename = filename[:-4] + '~Duplicate' + filename[-4:]
+			# Method to increment file names inside brackets
+			count = 1
+			tmpfile = filename[:-4] + ' ('
+			tmpext = ')' + filename[-4:]
+			# increment numbers until the file doesn't exist
+			while os.path.exists(os.path.join(save_location, filename)):
+				filename = tmpfile + str(count) + tmpext
+				count = count + 1
 	save_dialog.set_current_name(filename)
 
 	save_dialog.set_local_only(False) # allow saving to, e.g., SFTP
