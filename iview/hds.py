@@ -403,8 +403,12 @@ def read_afrt(bootstrap):
     for _ in range(count):
         run = dict()
         run["first"] = read_int(bootstrap, 4)  # First fragment number in run
+        
+        # Beware of actual fragment timestamps and durations drifting from
+        # fragment run table values
         run["timestamp"] = read_int(bootstrap, 8)  # Timestamp at start
         run["duration"] = read_int(bootstrap, 4)  # Duration of each fragment
+        
         size -= 16
         if not run["duration"]:
             run["discontinuity"] = read_int(bootstrap, 1)
