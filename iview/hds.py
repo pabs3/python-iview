@@ -465,6 +465,7 @@ def read_afrt(bootstrap):
         
         size -= 16
         if not run["duration"]:
+            del run["first"], run["timestamp"]  # Not used for discontinuity
             run["discontinuity"] = read_int(bootstrap, 1)
             size -= 1
         frag_runs.append(run)
