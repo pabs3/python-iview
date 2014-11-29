@@ -260,6 +260,7 @@ def resume_point(dest_file, metadata):
             if header != dict(audio=True, video=True):
                 raise ValueError(header)
             
+            print("Scanning existing FLV file", file=stderr)
             if metadata:
                 tag = flvlib.read_tag_header(reader)
                 if tag is None:
@@ -277,6 +278,8 @@ def resume_point(dest_file, metadata):
                 if data != metadata:
                     raise ValueError()
                 fastforward(reader, 4)
+            
+            tag = scan_last_tag(reader)
         except EOFError:
             pass
         except EnvironmentError as err:
@@ -286,6 +289,22 @@ def resume_point(dest_file, metadata):
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
     return None
+
+def scan_last_tag(reader):
+    good_tag = None
+    try:
+        while True:
+            tag_end = reader.tell()
+            tag = flvlib.read_tag_header(reader)
+            if tag is None:
+                raise EOFError()
+            fastforward(reader, tag["length"] + 4)
+            good_tag = tag
+    except EOFError:
+        if not good_tag:
+            raise
+    reader.seek(tag_end - 4)
+    return good_tag
 
 def iter_segs(seg_runs):
     # For each run of segments
