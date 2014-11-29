@@ -292,12 +292,19 @@ def resume_point(dest_file, metadata):
 
 def scan_last_tag(reader):
     good_tag = None
+    timestamp = None
     try:
         while True:
             tag_end = reader.tell()
             tag = flvlib.read_tag_header(reader)
             if tag is None:
                 raise EOFError()
+            
+            # Ensure timestamps are not out of order
+            if timestamp is not None and tag["timestamp"] < timestamp:
+                raise ValueError(tag["timestamp"])
+            timestamp = tag["timestamp"]
+            
             fastforward(reader, tag["length"] + 4)
             good_tag = tag
     except EOFError:
