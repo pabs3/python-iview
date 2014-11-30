@@ -6,7 +6,7 @@ import imp
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 import sys
-from io import BytesIO, TextIOWrapper, StringIO
+from io import BytesIO, TextIOWrapper
 from iview.utils import fastforward
 from errno import EPIPE
 
@@ -27,8 +27,7 @@ class TestCli(TestCase):
             def get_captions(url):
                 return "dummy captions"
         
-        with substattr(self.iview_cli.iview, "comm", comm), \
-        substattr(self.iview_cli, "stderr", StringIO()), \
+        with substattr(self.iview_cli.iview, comm), \
         TemporaryDirectory(prefix="python-iview.") as dir:
             output = os.path.join(dir, "programme.srt")
             self.iview_cli.subtitles("programme.mp4", output)
@@ -61,8 +60,7 @@ class TestCli(TestCase):
                 nonlocal fetched
                 fetched = dest_file
             with substattr(self.iview_cli.iview, comm), \
-            substattr(self.iview_cli.iview.fetch, fetch_program), \
-            substattr(self.iview_cli, "stderr", StringIO()):
+            substattr(self.iview_cli.iview.fetch, fetch_program):
                 self.addCleanup(os.chdir, os.getcwd())
                 
                 fetched = None

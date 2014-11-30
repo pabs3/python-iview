@@ -12,10 +12,10 @@ from sys import stderr
 import urllib.parse
 
 def config():
-	try:
-		iview.comm.get_config()
-	except HTTPError as error:
-		print("""\
+    try:
+        iview.comm.get_config()
+    except HTTPError as error:
+        print("""\
 Error: could not retrieve an important configuration file from iView.
 Please make sure you are connected to the Internet.
 
@@ -23,275 +23,277 @@ If iView works fine in your web browser, the iView API has possibly changed.
 Try to find an updated version of this program or contact the author.
 
 Debug: could not load URL {}""".format(error.url), file=stderr)
-		sys.exit(1)
+        sys.exit(1)
 
 def programme():
-	"""	Downloads the iView index, and then prints each item in all series.
-		This is a slow function. Using index() and subsequently cherrypicking
-		a series to pass to series() is much faster.
-	"""
-	return category('index')
+    """Downloads the iView index, and then prints each item in all series.
+    This is a slow function. Using index() and subsequently cherrypicking
+    a series to pass to series() is much faster.
+    """
+    return category('index')
 
 def category(keyword):
-	config()
-	index = iview.comm.get_keyword(keyword)
+    config()
+    index = iview.comm.get_keyword(keyword)
 
-	for series in index:
-		print(series['title'] + ':')
-		print_series_items(series['items'], indent='\t')
+    for series in index:
+        print(series['title'] + ':')
+        print_series_items(series['items'], indent='\t')
 
 def index():
-	"""	Downloads the iView index, and prints the corresponding series and IDs.
-	"""
-	config()
-	index = iview.comm.get_index()
+    """Downloads the iView index, and prints the corresponding series and IDs.
+    """
+    config()
+    index = iview.comm.get_index()
 
-	for series in index:
-		print(series['id'] + '\t' + series['title'])
+    for series in index:
+        print('{id}\t{title}'.format_map(series))
 
 def batch_index():
-	"""	Downloads the iView index, and prints the corresponding series and IDs in a format
-		that works in the iview batch file
-	"""
-	config()
-	index = iview.comm.get_index()
+    """Downloads the iView index, and prints the corresponding series and IDs in a format
+    that works in the iview batch file
+    """
+    config()
+    index = iview.comm.get_index()
 
-	for series in index:
-		print(series['id'] + ': ' + series['title'])
+    for series in index:
+        print('{id}: {title}'.format_map(series))
 
 def series(series_id):
-	config()
-	print_series_items(iview.comm.get_series_items(series_id))
+    config()
+    print_series_items(iview.comm.get_series_items(series_id))
 
 def print_series_items(items, indent=''):
-	for item in items:
-		print(indent + item['title'] + '\t(' + item['url'] + ')')
+    for item in items:
+        print('{}{}\t({})'.format(indent,
+            item['title'], item['url']))
 
 def print_auth():
-	config()
-	auth = iview.comm.get_auth()
-	print('iView auth data:')
-	for (desc, key) in (
-		('Streaming Host', 'host'),
-		('RTMP Token', 'token'),
-		('HDS Token', 'tokenhd'),
-		('Server URL', 'server'),
-		('Playpath Prefix', 'playpath_prefix'),
-		('Unmetered', 'free'),
-	):
-		value = auth.get(key)
-		if value is not None:
-			print('\t{}: {}'.format(desc, value))
+    config()
+    auth = iview.comm.get_auth()
+    print('iView auth data:')
+    for (desc, key) in (
+        ('Streaming Host', 'host'),
+        ('RTMP Token', 'token'),
+        ('HDS Token', 'tokenhd'),
+        ('Server URL', 'server'),
+        ('Playpath Prefix', 'playpath_prefix'),
+        ('Unmetered', 'free'),
+    ):
+        value = auth.get(key)
+        if value is not None:
+            print('\t{}: {}'.format(desc, value))
 
 def download(url, output=None):
-	config()
-	iview.fetch.fetch_program(url, execvp=True, dest_file=output)
+    config()
+    iview.fetch.fetch_program(url, execvp=True, dest_file=output)
 
 def batch(batch_file):
-	config()
+    config()
 
-	# parse the batch file
-	batch = configparser.ConfigParser()
-	batch.read(os.path.expanduser(batch_file))
-	items = batch.items('batch')
+    # parse the batch file
+    batch = configparser.ConfigParser()
+    batch.read(os.path.expanduser(batch_file))
+    items = batch.items('batch')
 
-	batch_destination = '.'
-	series_ids = []
-	series_comment = {}
-	last_only = False
+    batch_destination = '.'
+    series_ids = []
+    series_comment = {}
+    last_only = False
 
-	# separate options from the series ids
-	for key, value in items:
-		if key == 'destination':
-			batch_destination = value
-		elif key == 'last_only':
-			if not(value == '0' or value.lower() == 'false' or value.lower() == "no"):
-				last_only = True
-		else:
-			# Note: currently the value after the series_id in the batch file
-			# is only used as a comment for the user.
-			series_ids.append(key)
-			series_comment[key] = value
+    # separate options from the series ids
+    for key, value in items:
+        if key == 'destination':
+            batch_destination = value
+        elif key == 'last_only':
+            if not(value == '0' or value.lower() == 'false' or value.lower() == "no"):
+                last_only = True
+        else:
+            # Note: currently the value after the series_id in the batch file
+            # is only used as a comment for the user.
+            series_ids.append(key)
+            series_comment[key] = value
 
-	# move to where the files should be downloaded
-	os.chdir(batch_destination)
+    # move to where the files should be downloaded
+    os.chdir(batch_destination)
 
-	# loop through the series ids
-	for series_id in series_ids:
+    # loop through the series ids
+    for series_id in series_ids:
 
-		# unset the last episode for the current series.
-		last_episode = None
+        # unset the last episode for the current series.
+        last_episode = None
 
-		# loop through the episodes
-		episodes = iview.comm.get_series_items(series_id)
-		for episode in episodes:
-			if last_only:
-				# This last_only feature is experimental, I am not sure which field to 
-				# use to determine the most recent episode.
-				if last_episode == None or episode['date'] > last_episode['date']:
-					last_episode = episode
-			else:
-				batch_fetch_program(episode, series=series_comment[series_id])
+        # loop through the episodes
+        episodes = iview.comm.get_series_items(series_id)
+        for episode in episodes:
+            if last_only:
+                # This last_only feature is experimental, I am not sure which field to 
+                # use to determine the most recent episode.
+                if last_episode == None or episode['date'] > last_episode['date']:
+                    last_episode = episode
+            else:
+                batch_fetch_program(episode, series=series_comment[series_id])
 
-		# Last only means we only get one episode for the series
-		if last_only:
-			batch_fetch_program(last_episode, series=series_comment[series_id])
+        # Last only means we only get one episode for the series
+        if last_only:
+            batch_fetch_program(last_episode, series=series_comment[series_id])
 
 def batch_fetch_program(episode, series):
-	# Only print notification messages for episodes that have never been downloaded before.
+    # Only print notification messages for episodes that have never been downloaded before.
 
-	# urls sometimes include a path like 'news/' or 'kids/'
-	(pathpart, filepart) = os.path.split(episode['url'])
+    # urls sometimes include a path like 'news/' or 'kids/'
+    (pathpart, filepart) = os.path.split(episode['url'])
 
-	# urls also have '.mp4' extension but downloaded files end in '.flv'
-	(base, ext) = os.path.splitext(filepart)
+    # urls also have '.mp4' extension but downloaded files end in '.flv'
+    (base, ext) = os.path.splitext(filepart)
 
-	if series:
-		title = episode['title']
-		filename = iview.fetch.descriptive_filename(series, title, base)
-		if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
-			print(filename + " already exists as " + base +".flv so should be moved")
-			return
+    if series:
+        title = episode['title']
+        filename = iview.fetch.descriptive_filename(series, title, base)
+        if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
+            print("{} already exists as {}.flv so should be moved".format(filename, base))
+            return
 
-	else:
-		filename = base + '.flv'
+    else:
+        filename = base + '.flv'
 
-	if not os.path.isfile(filename):
-		msg = "getting " + episode['title'] + " - " + episode['url'] + " -> " + filename
-		print(msg, file=stderr)
-		iview.fetch.fetch_program(episode['url'], execvp=False, dest_file=filename, quiet=True)
+    if not os.path.isfile(filename):
+        msg = "getting {} - {} -> {}".format(episode['title'], episode['url'], filename)
+        print(msg, file=stderr)
+        iview.fetch.fetch_program(episode['url'], execvp=False, dest_file=filename, quiet=True)
 
 
 
 def subtitles(name, output=None):
-	config()
+    config()
 
-	url = name.rsplit('.', 1)[0]
-	if output is not None:
-		srt = output
-	else:
-		srt = url.rsplit('/', 1)[-1] + '.srt'
+    url = name.rsplit('.', 1)[0]
+    if output is not None:
+        srt = output
+    else:
+        srt = url.rsplit('/', 1)[-1] + '.srt'
 
-	if not srt == '-' and os.path.isfile(srt):
-		print('Subtitles have already been downloaded to %s' % srt, file=stderr)
-		return False
+    if not srt == '-' and os.path.isfile(srt):
+        print('Subtitles have already been downloaded to {}'.format(srt), file=stderr)
+        return False
 
-	print('Downloading subtitles to %s...' % srt, end=' ', file=stderr)
+    msg = 'Downloading subtitles to {}...'.format(srt)
+    print(msg, end=' ', file=stderr)
 
-	try:
-		subtitles = iview.comm.get_captions(url)
-	except HTTPError as error:
-		print('failed', file=stderr)
-		print('Got an error when downloading %s' % error.url, file=stderr)
-		return False
+    try:
+        subtitles = iview.comm.get_captions(url)
+    except HTTPError as error:
+        print('failed', file=stderr)
+        print('Got an error when downloading {}'.format(error.url), file=stderr)
+        return False
 
-	if not srt == '-':
-		f = open(srt, 'wb')
-	else:
-		f = sys.stdout.detach()
-		sys.stdout = None
+    if not srt == '-':
+        f = open(srt, 'wb')
+    else:
+        f = sys.stdout.detach()
+        sys.stdout = None
 
-	with f:
-		f.write(subtitles.encode('utf-8'))
+    with f:
+        f.write(subtitles.encode('utf-8'))
 
-	print('done', file=stderr)
+    print('done', file=stderr)
 
 def parse_proxy_argument(proxy):
-	"""	Try to parse 'proxy' as host:port pair.  Returns an error message
-		if it cannot be understood.  Otherwise, it configures the settings
-		in iview.config and returns None.
-	"""
+    """Try to parse 'proxy' as host:port pair.  Returns an error message
+    if it cannot be understood.  Otherwise, it configures the settings
+    in iview.config and returns None.
+    """
 
-	try:
-		split = urllib.parse.SplitResult(scheme="", netloc=proxy,
-			path="", query="", fragment="")
-		if split.port is not None:
-			iview.config.socks_proxy_port = split.port
-	except ValueError as err:
-		return err
-	iview.config.socks_proxy_host = split.hostname
+    try:
+        split = urllib.parse.SplitResult(scheme="", netloc=proxy,
+            path="", query="", fragment="")
+        if split.port is not None:
+            iview.config.socks_proxy_port = split.port
+    except ValueError as err:
+        return err
+    iview.config.socks_proxy_host = split.hostname
 
-	return None
+    return None
 
 def main():
-	params = argparse.ArgumentParser()
-	params.add_argument("-i", "--index", action="store_true",
-		help="print the iView index (number is the series ID)")
-	params.add_argument("-s", "--series", metavar="<id>",
-		help="get the list of programmes for the series")
-	params.add_argument("-k", "--category", metavar="<keyword>",
-		help="list programmes matching a category keyword")
-	params.add_argument("-p", "--programme", action="store_true",
-		help="""list all iView programmes at once""")
-	params.add_argument("-d", "--download", metavar="<url>",
-		help="""download a programme
-		(pass the url you got from -s, -k or -p)""")
-	params.add_argument("-t", "--subtitles" , metavar="<url>",
-		help="""download subtitles in SRT format for a programme
-		(pass the same url as for --download)""")
-	params.add_argument("-o", "--output", metavar="<file>",
-		help="specify a file to output to (use - for stdout)")
-	params.add_argument("--batch", metavar="<file>",
-		help="specify a batch operation file (for cronjob etc)")
-	params.add_argument("--bindex", action="store_true",
-		help="like --index but output is in batchfile format")
-	params.add_argument("-a", "--print-auth", action="store_true",
-		help="print debug iView auth information")
-	params.add_argument("-c", "--cache", metavar="<dir>",
-		help="use cache directory for debugging")
-	params.add_argument("--host", metavar="<name>",
-		help="override streaming host")
-	params.add_argument("--ip", metavar="<address>",
-		help="send IP address in auth request")
-	params.add_argument("-x", "--proxy", metavar="<host:port>",
-		help="use specified SOCKS proxy")
-	
-	if len(sys.argv) <= 1:
-		params.print_help(stderr)
-		sys.exit(2)
-	args = params.parse_args()
-	
-	if args.proxy is not None:
-		err = parse_proxy_argument(args.proxy)
-		if err is not None:
-			print("Invalid proxy specification: %s\n" % err, file=stderr)
-			params.print_usage(stderr)
-			sys.exit(4)
-		iview.comm.configure_socks_proxy()
-	if args.cache is not None:
-		iview.config.cache = args.cache
-	if args.host is not None:
-		iview.config.override_host = args.host
-	if args.ip is not None:
-		iview.config.ip = args.ip
+    params = argparse.ArgumentParser()
+    params.add_argument("-i", "--index", action="store_true",
+        help="print the iView index (number is the series ID)")
+    params.add_argument("-s", "--series", metavar="<id>",
+        help="get the list of programmes for the series")
+    params.add_argument("-k", "--category", metavar="<keyword>",
+        help="list programmes matching a category keyword")
+    params.add_argument("-p", "--programme", action="store_true",
+        help="""list all iView programmes at once""")
+    params.add_argument("-d", "--download", metavar="<url>",
+        help="""download a programme
+        (pass the url you got from -s, -k or -p)""")
+    params.add_argument("-t", "--subtitles" , metavar="<url>",
+        help="""download subtitles in SRT format for a programme
+        (pass the same url as for --download)""")
+    params.add_argument("-o", "--output", metavar="<file>",
+        help="specify a file to output to (use - for stdout)")
+    params.add_argument("--batch", metavar="<file>",
+        help="specify a batch operation file (for cronjob etc)")
+    params.add_argument("--bindex", action="store_true",
+        help="like --index but output is in batchfile format")
+    params.add_argument("-a", "--print-auth", action="store_true",
+        help="print debug iView auth information")
+    params.add_argument("-c", "--cache", metavar="<dir>",
+        help="use cache directory for debugging")
+    params.add_argument("--host", metavar="<name>",
+        help="override streaming host")
+    params.add_argument("--ip", metavar="<address>",
+        help="send IP address in auth request")
+    params.add_argument("-x", "--proxy", metavar="<host:port>",
+        help="use specified SOCKS proxy")
+    
+    if len(sys.argv) <= 1:
+        params.print_help(stderr)
+        sys.exit(2)
+    args = params.parse_args()
+    
+    if args.proxy is not None:
+        err = parse_proxy_argument(args.proxy)
+        if err is not None:
+            print("Invalid proxy specification: {}\n".format(err), file=stderr)
+            params.print_usage(stderr)
+            sys.exit(4)
+        iview.comm.configure_socks_proxy()
+    if args.cache is not None:
+        iview.config.cache = args.cache
+    if args.host is not None:
+        iview.config.override_host = args.host
+    if args.ip is not None:
+        iview.config.ip = args.ip
 
-	if args.programme:
-		programme()
-	if args.category is not None:
-		category(args.category)
-	if args.index:
-		index()
-	if args.bindex:
-		batch_index()
-	if args.series is not None:
-		series(args.series)
-	if args.print_auth:
-		print_auth()
-	
-	if args.download is not None:
-		download(args.download, args.output)
-	elif args.subtitles is not None:
-		subtitles(args.subtitles, args.output)
-	elif args.batch is not None:
-		batch(args.batch)
+    if args.programme:
+        programme()
+    if args.category is not None:
+        category(args.category)
+    if args.index:
+        index()
+    if args.bindex:
+        batch_index()
+    if args.series is not None:
+        series(args.series)
+    if args.print_auth:
+        print_auth()
+    
+    if args.download is not None:
+        download(args.download, args.output)
+    elif args.subtitles is not None:
+        subtitles(args.subtitles, args.output)
+    elif args.batch is not None:
+        batch(args.batch)
 
 if __name__ == "__main__":
-	try:
-		main()
-	except KeyboardInterrupt:
-		sys.exit(1)
-	except EnvironmentError as err:
-		if err.errno == EPIPE:
-			sys.exit(1)
-		else:
-			raise
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(1)
+    except EnvironmentError as err:
+        if err.errno == EPIPE:
+            sys.exit(1)
+        else:
+            raise

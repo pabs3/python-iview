@@ -13,20 +13,20 @@ except NameError:  # Python < 3.3
     ConnectionError = ()
 
 def xml_text_elements(parent, namespace=""):
-	"""Extracts text from Element Tree into a dict()
-	
-	Each key is the tag name of a child of the given parent element, and
-	the value is the text of that child. Only tags with no attributes are
-	included. If the "namespace" parameter is given, it should specify an
-	XML namespace enclosed in curly brackets {. . .}, and only tags in
-	that namespace are included."""
-	
-	d = dict()
-	for child in parent:
-		if child.tag.startswith(namespace) and not child.keys():
-			tag = child.tag[len(namespace):]
-			d[tag] = child.text or ""
-	return d
+    """Extracts text from Element Tree into a dict()
+    
+    Each key is the tag name of a child of the given parent element, and
+    the value is the text of that child. Only tags with no attributes are
+    included. If the "namespace" parameter is given, it should specify an
+    XML namespace enclosed in curly brackets {. . .}, and only tags in
+    that namespace are included."""
+    
+    d = dict()
+    for child in parent:
+        if child.tag.startswith(namespace) and not child.keys():
+            tag = child.tag[len(namespace):]
+            d[tag] = child.text or ""
+    return d
 
 def read_int(stream, size):
     bytes = read_strict(stream, size)
