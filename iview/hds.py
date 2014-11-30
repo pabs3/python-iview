@@ -294,6 +294,13 @@ def resume_point(dest_file, metadata, bootstrap):
             last_ts = tag["timestamp"]
             [run_index, run, ts_offset, frag_runs] = find_frag_run(
                 bootstrap, last_ts, 1000)
+            for _ in range(3):  # Retry if fragment starts too late
+                offset = ts_offset * run["span"] // run["run_duration"]
+                frag_index = run_index + offset
+                segs = iter_segs(bootstrap, frag_index)
+            else:
+                msg = "Failed estimating resume fragment after 3 tries"
+                raise OverflowError(msg)
     
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
@@ -363,19 +370,26 @@ def find_frag_run(bootstrap, timestamp, timescale):
             duration = run["duration"]
             flags = 0
 
-def iter_segs(seg_runs):
+def iter_segs(bootstrap, start=0):
     # For each run of segments
-    for (i, run) in enumerate(seg_runs):
+    for (i, run) in enumerate(bootstrap["seg_runs"]):
         # For each segment in the run
         seg = run["first"]
-        if i + 1 < len(seg_runs):
-            end = seg_runs[i + 1]["first"]
+        if i + 1 < len(bootstrap["seg_runs"]):
+            end = bootstrap["seg_runs"][i + 1]["first"]
+            frags = (end - seg) * run["frags"]
+            if start >= frags:
+                start -= frags
+                continue
         else:
             end = None
+        [segs, start] = divmod(start, run["frags"])
+        seg += segs
         while end is None or seg < end:
             # For each fragment in the segment
-            for _ in range(run["frags"]):
+            for _ in range(start, run["frags"]):
                 yield seg
+            start = 0
             seg += 1
 
 def iter_frags(frag_runs):
