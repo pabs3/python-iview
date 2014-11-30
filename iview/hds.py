@@ -304,9 +304,17 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
                     raise EOFError("Tag extends past end of box")
                 if tag["timestamp"] <= last_ts:
                     break
+                raise NotImplementedError("TODO: Cancel fragment and try an earlier one")
             else:
                 msg = "Failed estimating resume fragment after 3 tries"
                 raise OverflowError(msg)
+            
+            # Assumes timestamps in different fragments are unequal
+            seek_backwards(reader, tag["timestamp"])
+            msg = "Resuming FLV from {:.1F} s ({:.1F} MB)"
+            timestamp = tag["timestamp"] / 1000
+            size = (reader.tell() - start) / 1e6
+            print(msg.format(timestamp, size), file=stderr)
     
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
@@ -392,6 +400,18 @@ def find_frag_run(bootstrap, timestamp, timescale):
             start_time = run["timestamp"]
             duration = run["duration"]
             flags = 0
+
+def seek_backwards(reader, timestamp):
+    while True:
+        length = read_int(reader, 4)
+        if not length:
+            break
+        reader.seek(-4 - length, io.SEEK_CUR)
+        tag = flvlib.read_tag_header(reader)
+        if tag["timestamp"] < timestamp:
+            reader.seek(+tag["length"] + 4, io.SEEK_CUR)
+            break
+        reader.seek(-flvlib.TAG_HEADER_LENGTH - 4, io.SEEK_CUR)
 
 def iter_segs(bootstrap, start=0):
     # For each run of segments
