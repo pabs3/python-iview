@@ -34,6 +34,7 @@ from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
 from errno import ESPIPE, EBADF
 import os
+from itertools import chain
 
 def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
 **kw):
@@ -64,7 +65,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             session=session, url=url, player=player)
         
         metadata = media.get("metadata")
-        flv = start_flv(dest_file, metadata)
+        flv = start_flv(dest_file, metadata, bootstrap)
         
         media_url = media["url"] + bootstrap["movie_identifier"]
         if "highest_quality" in bootstrap:
@@ -228,9 +229,9 @@ def get_bootstrap(media, *, session, url, player=None):
     
     return result
 
-def start_flv(dest_file, metadata):
+def start_flv(dest_file, metadata, bootstrap):
     """Determine resume point, or write out start of FLV"""
-    frags = resume_point(dest_file, metadata)
+    frags = resume_point(dest_file, metadata, bootstrap)
     if frags is not None:
         return dest_file
     
@@ -243,7 +244,7 @@ def start_flv(dest_file, metadata):
         flvlib.write_scriptdata(flv, metadata)
     return flv
 
-def resume_point(dest_file, metadata):
+def resume_point(dest_file, metadata, bootstrap):
     try:
         start = dest_file.tell()  # Ensures file is seekable
         fd = dest_file.fileno()
@@ -285,6 +286,14 @@ def resume_point(dest_file, metadata):
         except EnvironmentError as err:
             if err.errno != EBADF:  # Reading from write-only file descriptor
                 raise
+        else:
+            # Resume at the fragment containing the last timestamp. Usually
+            # this means that the last fragment will be downloaded a second
+            # time, but it ensures that the complete fragment is written out
+            # in case it was previously truncated.
+            last_ts = tag["timestamp"]
+            [run_index, run, ts_offset, frag_runs] = find_frag_run(
+                bootstrap, last_ts, 1000)
     
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
@@ -312,6 +321,47 @@ def scan_last_tag(reader):
             raise
     reader.seek(tag_end - 4)
     return good_tag
+
+def find_frag_run(bootstrap, timestamp, timescale):
+    """Find a fragment run that probably contains the timestamp"""
+    timestamp *= bootstrap["frag_timescale"]
+    runs = iter(bootstrap["frag_runs"])
+    flags = 0
+    start_frag = None
+    frag_index = 0
+    while True:
+        run = next(runs, dict(discontinuity=DISCONT_END))
+        discontinuity = run.get("discontinuity")
+        if discontinuity == DISCONT_END:
+            flags |= DISCONT_FRAG | DISCONT_TIME
+        elif discontinuity is not None:
+            flags |= discontinuity
+        if discontinuity in {None, DISCONT_END}:
+            if start_frag is not None:
+                if flags & DISCONT_FRAG:
+                    frags = 1
+                else:
+                    frags = run["first"] - start_frag
+                if flags & DISCONT_TIME:
+                    run_duration = duration * frags
+                else:
+                    run_duration = (
+                        run["timestamp"] - start_time)
+                start_time *= timescale
+                run_duration *= timescale
+                ts_offset = timestamp - start_time
+                if 0 <= ts_offset < run_duration:
+                    run_info = dict(start=start_frag, span=frags,
+                        start_time=start_time, run_duration=run_duration)
+                    runs = chain((run,), runs)
+                    return (frag_index, run_info, ts_offset, runs)
+                frag_index += frags
+            if discontinuity == DISCONT_END:
+                raise ValueError("No fragment run found with timestamp")
+            start_frag = run["first"]
+            start_time = run["timestamp"]
+            duration = run["duration"]
+            flags = 0
 
 def iter_segs(seg_runs):
     # For each run of segments
