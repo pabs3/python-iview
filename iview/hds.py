@@ -88,64 +88,20 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         progress_update(frontend, flv, 0, duration)
         
         segs = iter_segs(bootstrap["seg_runs"])
-        first = True
+        strip_headers = False
         for (frag, endtime) in iter_frags(bootstrap["frag_runs"]):
             seg = next(segs)
             if abort and abort.is_set():
                 raise SystemExit()
             response = get_frag(session, media_url, seg, frag, player=player)
-            buffer = io.BytesIO()
             
             if abort and abort.is_set():
                 raise SystemExit()
-            for boxsize in mdat_boxes(response):
-                # Strip AAC and AVC sequence headers from fragments other
-                # than the first fragment. This assumes that the header
-                # tags only appear as the first tag of their type in each
-                # fragment. This way the code avoids unnecessarily
-                # scanning for them, which is much slower than simply
-                # copying the stream.
-                if not first:
-                    audio_found = False
-                    video_found = False
-                    while boxsize and not (audio_found and video_found):
-                        cache = io.BytesIO()
-                        proxy = WritingReader(response, cache)
-                        tag = flvlib.read_tag_header(proxy)
-                        
-                        if tag["type"] == flvlib.TAG_AUDIO:
-                            audio_found = True
-                            parsed = flvlib.parse_audio_tag(proxy, tag)
-                            skip = (parsed.get("aac_type") ==
-                                flvlib.AAC_HEADER)
-                        elif tag["type"] == flvlib.TAG_VIDEO:
-                            video_found = True
-                            parsed = flvlib.parse_video_tag(proxy, tag)
-                            skip = (parsed.get("avc_type") ==
-                                flvlib.AVC_HEADER)
-                        else:
-                            skip = False
-                        
-                        boxsize -= cache.tell()
-                        tag["length"] += 4  # Trailing tag size field
-                        if skip:
-                            fastforward(response, tag["length"])
-                        elif tag["length"] > 10e6:
-                            raise OverflowError("FLV tag over 10 MB")
-                        else:
-                            buffer.write(cache.getvalue())
-                            streamcopy(response, buffer, tag["length"])
-                        boxsize -= tag["length"]
-                        if boxsize < 0:
-                            raise EOFError("Tag extends past end of box")
-                
-                streamcopy(response, buffer, boxsize)
-                first = False
-            
-            buffer.seek(0)
+            buffer = frag_to_flv(response, strip_headers=strip_headers)
             copyfileobj(buffer, flv)
             endtime /= bootstrap["frag_timescale"]
             progress_update(frontend, flv, endtime, duration)
+            strip_headers = True
         if not frontend:
             print(file=stderr)
 
@@ -310,12 +266,25 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
                 msg = "Failed estimating resume fragment after 3 tries"
                 raise OverflowError(msg)
             
+            # Copy rest of fragment into buffer, now timestamp is verified
+            for _ in range(32 * 1024 // 64):
+                if not proxy.read(64 * 1024):
+                    break
+            else:
+                raise OverflowError("Fragment exceeds 32 MiB")
+            buffer.seek(0)
+            
             # Assumes timestamps in different fragments are unequal
             seek_backwards(reader, tag["timestamp"])
             msg = "Resuming FLV from {:.1F} s ({:.1F} MB)"
             timestamp = tag["timestamp"] / 1000
             size = (reader.tell() - start) / 1e6
             print(msg.format(timestamp, size), file=stderr)
+            
+            buffer = frag_to_flv(buffer, strip_headers=frag_index)
+            dest_file.seek(reader.tell())
+            possibly_trunc(dest_file)
+            copyfileobj(buffer, dest_file)
     
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
@@ -348,6 +317,50 @@ def get_frag(session, url, seg, frag, player=""):
     url = "{}Seg{}-Frag{}".format(url, seg, frag)
     url = urljoin(url, player)
     return http_get(session, url, ("video/f4f",))
+
+def frag_to_flv(frag, strip_headers):
+    strip_audio = strip_headers
+    strip_video = strip_headers
+    buffer = io.BytesIO()
+    for boxsize in mdat_boxes(frag):
+        # Strip AAC and AVC sequence headers from fragments other than the
+        # first fragment. This assumes that the header tags only appear as
+        # the first tag of their type in each fragment. This way the code
+        # avoids unnecessarily scanning for them, which is much slower than
+        # simply copying the stream.
+        while boxsize and (strip_audio or strip_video):
+            cache = io.BytesIO()
+            proxy = WritingReader(frag, cache)
+            tag = flvlib.read_tag_header(proxy)
+            
+            if tag["type"] == flvlib.TAG_AUDIO:
+                strip_audio = False
+                parsed = flvlib.parse_audio_tag(proxy, tag)
+                skip = parsed.get("aac_type") == flvlib.AAC_HEADER
+            elif tag["type"] == flvlib.TAG_VIDEO:
+                strip_video = False
+                parsed = flvlib.parse_video_tag(proxy, tag)
+                skip = parsed.get("avc_type") == flvlib.AVC_HEADER
+            else:
+                skip = False
+            
+            boxsize -= cache.tell()
+            tag["length"] += 4  # Trailing tag size field
+            if skip:
+                fastforward(frag, tag["length"])
+            elif tag["length"] > 10e6:
+                raise OverflowError("FLV tag over 10 MB")
+            else:
+                buffer.write(cache.getvalue())
+                streamcopy(frag, buffer, tag["length"])
+            boxsize -= tag["length"]
+            if boxsize < 0:
+                raise EOFError("Tag extends past end of box")
+        
+        streamcopy(frag, buffer, boxsize)
+    
+    buffer.seek(0)
+    return buffer
 
 def mdat_boxes(frag):
     for _ in range(100):
