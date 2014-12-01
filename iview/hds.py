@@ -89,8 +89,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         for (frag, endtime) in iter_frags(bootstrap["frag_runs"]):
             seg = next(segs)
             frag_url = "{}Seg{}-Frag{}".format(media_url, seg, frag)
-            if player:
-                frag_url = urljoin(frag_url, "?" + player)
+            frag_url = urljoin(frag_url, player)
             response = http_get(session, frag_url, ("video/f4f",))
             buffer = io.BytesIO()
             
@@ -155,13 +154,12 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         if not frontend:
             print(file=stderr)
 
-def get_bootstrap(media, *, session, url, player=None):
+def get_bootstrap(media, *, session, url, player=""):
     bootstrap = media["bootstrapInfo"]
     bsurl = bootstrap.get("url")
     if bsurl is not None:
         bsurl = urljoin(url, bsurl)
-        if player:
-            bsurl = urljoin(bsurl, "?" + player)
+        bsurl = urljoin(bsurl, player)
         with http_get(session, bsurl, "video/abst") as response:
             bootstrap = response.read()
     else:
@@ -570,14 +568,14 @@ DISCONT_TIME = 2
 def player_verification(manifest, player, key):
     pv = manifest.get("pv-2.0")
     if not pv:
-        return
+        return ""
     (data, hdntl) = pv.split(";")
     msg = "st=0~exp=9999999999~acl=*~data={}!{}".format(data, player)
     sig = hmac.new(key, msg.encode("ascii"), sha256)
     pvtoken = "{}~hmac={}".format(msg, sig.hexdigest())
     
     # The "hdntl" parameter must be passed either in the URL or as a cookie
-    return "pvtoken={}&{}".format(
+    return "?pvtoken={}&{}".format(
         urlencode_param(pvtoken), urlencode_param(hdntl))
 
 def skip_box(stream):
