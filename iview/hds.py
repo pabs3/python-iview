@@ -65,7 +65,6 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             session=session, url=url, player=player)
         
         metadata = media.get("metadata")
-        flv = start_flv(dest_file, metadata, bootstrap)
         
         media_url = media["url"] + bootstrap["movie_identifier"]
         if "highest_quality" in bootstrap:
@@ -73,6 +72,10 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         if "server_base_url" in bootstrap:
             media_url = urljoin(bootstrap["server_base_url"], media_url)
         media_url = urljoin(url, media_url)
+        
+        flv = start_flv(dest_file,
+            metadata=metadata, bootstrap=bootstrap,
+            session=session, url=media_url, player=player)
         
         if not duration:
             if bootstrap["time"]:
@@ -88,9 +91,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         first = True
         for (frag, endtime) in iter_frags(bootstrap["frag_runs"]):
             seg = next(segs)
-            frag_url = "{}Seg{}-Frag{}".format(media_url, seg, frag)
-            frag_url = urljoin(frag_url, player)
-            response = http_get(session, frag_url, ("video/f4f",))
+            response = get_frag(session, media_url, seg, frag, player=player)
             buffer = io.BytesIO()
             
             for _ in range(100):
@@ -227,9 +228,11 @@ def get_bootstrap(media, *, session, url, player=""):
     
     return result
 
-def start_flv(dest_file, metadata, bootstrap):
+def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
     """Determine resume point, or write out start of FLV"""
-    frags = resume_point(dest_file, metadata, bootstrap)
+    frags = resume_point(dest_file,
+        metadata=metadata, bootstrap=bootstrap,
+        session=session, url=url, player=player)
     if frags is not None:
         return dest_file
     
@@ -242,7 +245,7 @@ def start_flv(dest_file, metadata, bootstrap):
         flvlib.write_scriptdata(flv, metadata)
     return flv
 
-def resume_point(dest_file, metadata, bootstrap):
+def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
     try:
         start = dest_file.tell()  # Ensures file is seekable
         fd = dest_file.fileno()
@@ -296,6 +299,9 @@ def resume_point(dest_file, metadata, bootstrap):
                 offset = ts_offset * run["span"] // run["run_duration"]
                 frag_index = run_index + offset
                 segs = iter_segs(bootstrap, frag_index)
+                frag = run["start"] + offset
+                response = get_frag(session, url, next(segs), frag,
+                    player=player)
             else:
                 msg = "Failed estimating resume fragment after 3 tries"
                 raise OverflowError(msg)
@@ -326,6 +332,11 @@ def scan_last_tag(reader):
             raise
     reader.seek(tag_end - 4)
     return good_tag
+
+def get_frag(session, url, seg, frag, player=""):
+    url = "{}Seg{}-Frag{}".format(url, seg, frag)
+    url = urljoin(url, player)
+    return http_get(session, url, ("video/f4f",))
 
 def find_frag_run(bootstrap, timestamp, timescale):
     """Find a fragment run that probably contains the timestamp"""
