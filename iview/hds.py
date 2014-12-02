@@ -34,7 +34,6 @@ from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
 from errno import ESPIPE, EBADF, EINVAL
 import os
-from itertools import chain
 
 def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
 **kw):
@@ -244,13 +243,13 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
             # time, but it ensures that the complete fragment is written out
             # in case it was previously truncated.
             last_ts = tag["timestamp"]
-            [run_index, run, ts_offset, frag_runs] = find_frag_run(
+            [run, ts_offset, frag_runs] = find_frag_run(
                 bootstrap, last_ts, 1000)
             for _ in range(3):  # Retry if fragment starts too late
                 offset = ts_offset * run["span"] // run["run_duration"]
-                frag_index = run_index + offset
+                frag_index = run["frag_index"] + offset
                 segs = iter_segs(bootstrap, frag_index)
-                frag = run["start"] + offset
+                frag = run["first"] + offset
                 response = get_frag(session, url, next(segs), frag,
                     player=player)
                 buffer = io.BytesIO()
@@ -377,43 +376,15 @@ def mdat_boxes(frag):
 def find_frag_run(bootstrap, timestamp, timescale):
     """Find a fragment run that probably contains the timestamp"""
     timestamp *= bootstrap["frag_timescale"]
-    runs = iter(bootstrap["frag_runs"])
-    flags = 0
-    start_frag = None
-    frag_index = 0
-    while True:
-        run = next(runs, dict(discontinuity=DISCONT_END))
-        discontinuity = run.get("discontinuity")
-        if discontinuity == DISCONT_END:
-            flags |= DISCONT_FRAG | DISCONT_TIME
-        elif discontinuity is not None:
-            flags |= discontinuity
-        if discontinuity in {None, DISCONT_END}:
-            if start_frag is not None:
-                if flags & DISCONT_FRAG:
-                    frags = 1
-                else:
-                    frags = run["first"] - start_frag
-                if flags & DISCONT_TIME:
-                    run_duration = duration * frags
-                else:
-                    run_duration = (
-                        run["timestamp"] - start_time)
-                start_time *= timescale
-                run_duration *= timescale
-                ts_offset = timestamp - start_time
-                if 0 <= ts_offset < run_duration:
-                    run_info = dict(start=start_frag, span=frags,
-                        start_time=start_time, run_duration=run_duration)
-                    runs = chain((run,), runs)
-                    return (frag_index, run_info, ts_offset, runs)
-                frag_index += frags
-            if discontinuity == DISCONT_END:
-                raise ValueError("No fragment run found with timestamp")
-            start_frag = run["first"]
-            start_time = run["timestamp"]
-            duration = run["duration"]
-            flags = 0
+    runs = iter_frag_runs(bootstrap)
+    for run in runs:
+        run["timestamp"] *= timescale
+        run["run_duration"] *= timescale
+        ts_offset = timestamp - run["timestamp"]
+        if 0 <= ts_offset < run["run_duration"]:
+            return (run, ts_offset, runs)
+    else:
+        raise ValueError("No fragment run found with timestamp")
 
 def seek_backwards(reader, timestamp):
     while True:
@@ -426,6 +397,39 @@ def seek_backwards(reader, timestamp):
             reader.seek(+tag["length"] + 4, io.SEEK_CUR)
             break
         reader.seek(-flvlib.TAG_HEADER_LENGTH - 4, io.SEEK_CUR)
+
+def iter_frag_runs(bootstrap):
+    runs = iter(bootstrap["frag_runs"])
+    flags = 0
+    run = None
+    frag_index = 0
+    while True:
+        next_run = next(runs, dict(discontinuity=DISCONT_END))
+        discontinuity = next_run.get("discontinuity")
+        if discontinuity == DISCONT_END:
+            flags |= DISCONT_FRAG | DISCONT_TIME
+        elif discontinuity is not None:
+            flags |= discontinuity
+        if discontinuity not in {None, DISCONT_END}:
+            continue
+        
+        if run is not None:
+            if flags & DISCONT_FRAG:
+                run["span"] = 1
+            else:
+                run["span"] = next_run["first"] - run["first"]
+            if flags & DISCONT_TIME:
+                run["run_duration"] = run["duration"] * run["span"]
+            else:
+                run["run_duration"] = (
+                    next_run["timestamp"] - run["timestamp"])
+            run["frag_index"] = frag_index
+            yield run
+            frag_index += run["span"]
+        if discontinuity == DISCONT_END:
+            break
+        run = next_run
+        flags = 0
 
 def iter_segs(bootstrap, start=0):
     # For each run of segments
