@@ -242,10 +242,14 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
             # time, but it ensures that the complete fragment is written out
             # in case it was previously truncated.
             last_ts = tag["timestamp"]
-            [run, ts_offset, frag_runs] = find_frag_run(
-                bootstrap, last_ts, 1000)
+            ref_offset = 0
             for _ in range(3):  # Retry if fragment starts too late
-                offset = ts_offset * run["span"] // run["run_duration"]
+                if not ref_offset:
+                    [run, ts_offset, frag_runs] = find_frag_run(
+                        bootstrap, last_ts)
+                    ref_time = run["run_duration"]
+                    ref_offset = run["span"]
+                offset = ts_offset * ref_offset // ref_time
                 frag_index = run["frag_index"] + offset
                 segs = iter_segs(bootstrap, frag_index)
                 frag = run["first"] + offset
@@ -259,7 +263,16 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
                     raise EOFError("Tag extends past end of box")
                 if tag["timestamp"] <= last_ts:
                     break
-                raise NotImplementedError("TODO: Cancel fragment and try an earlier one")
+                print("Fragment {} starts at {:.3F} s > {:.3F} s".format(
+                    frag, tag["timestamp"] / 1000, last_ts / 1000),
+                    file=stderr)
+                response.close()
+                ref_time = tag["timestamp"] * bootstrap["frag_timescale"]
+                ref_offset = offset
+                if not ref_offset:
+                    # Fragment run starts too late; update timestamp in run
+                    # table and find another run entry
+                    run["timestamp"] = ref_time
             else:
                 msg = "Failed estimating resume fragment after 3 tries"
                 raise OverflowError(msg)
@@ -376,13 +389,11 @@ def mdat_boxes(frag):
     else:
         raise OverflowError("100 or more boxes in fragment")
 
-def find_frag_run(bootstrap, timestamp, timescale):
+def find_frag_run(bootstrap, timestamp):
     """Find a fragment run that probably contains the timestamp"""
     timestamp *= bootstrap["frag_timescale"]
     runs = iter_frag_runs(bootstrap)
     for run in runs:
-        run["timestamp"] *= timescale
-        run["run_duration"] *= timescale
         ts_offset = timestamp - run["timestamp"]
         if 0 <= ts_offset < run["run_duration"]:
             return (run, ts_offset, runs)
@@ -587,9 +598,10 @@ def read_afrt(bootstrap):
         run["first"] = read_int(bootstrap, 4)  # First fragment number in run
         
         # Beware of actual fragment timestamps and durations drifting from
-        # fragment run table values
-        run["timestamp"] = read_int(bootstrap, 8)  # Timestamp at start
-        run["duration"] = read_int(bootstrap, 4)  # Duration of each fragment
+        # fragment run table values. Scale by 1000 to get common scale with
+        # FLV tag timestamps.
+        run["timestamp"] = read_int(bootstrap, 8) * 1000  # Start timestamp
+        run["duration"] = read_int(bootstrap, 4) * 1000  # Fragment duration
         
         size -= 16
         if not run["duration"]:
