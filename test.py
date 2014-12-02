@@ -86,7 +86,10 @@ class TestF4v(TestCase):
 class TestGui(TestCase):
     def setUp(self):
         path = os.path.join(os.path.dirname(__file__), "iview-gtk")
-        self.iview_gtk = load_script(path, "iview-gtk")
+        try:
+            self.iview_gtk = load_script(path, "iview-gtk")
+        except ImportError as err:
+            self.skipTest(err)
     
     def test_livestream(self):
         """Item with "livestream" (r) key but no "url" (n) key"""
