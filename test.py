@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 import sys
 from io import BytesIO, TextIOWrapper
 from iview.utils import fastforward
-from errno import EPIPE
+from errno import EPIPE, ECONNRESET
 
 try:  # Python 3.4
     from importlib import reload
@@ -220,8 +220,8 @@ class TestLoopbackHttp(TestPersistentHttp):
         self.assertEqual(2, self.handle_calls,
             "Server handle() retried for POST")
     
-    def test_close_pipe(self):
-        """Test connection closure reported as broken pipe"""
+    def test_close_error(self):
+        """Test connection closure reported as connection error"""
         self.close_connection = True
         with self.session.open(self.url + "/one") as response:
             self.assertEqual(b"body\r\n", response.read())
@@ -232,7 +232,8 @@ class TestLoopbackHttp(TestPersistentHttp):
         try:
             self.session.open(self.url + "/two", data)
         except EnvironmentError as err:
-            self.assertEqual(EPIPE, err.errno, "EPIPE expected")
+            expected = {EPIPE, ECONNRESET}
+            self.assertIn(err.errno, expected, "Connection error expected")
         else:
             self.fail("POST should have failed")
         self.assertEqual(1, self.handle_calls,
