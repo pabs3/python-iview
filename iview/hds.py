@@ -34,6 +34,7 @@ from .utils import read_int, read_string, read_strict
 from .utils import WritingReader
 from errno import ESPIPE, EBADF, EINVAL
 import os
+from itertools import chain
 
 def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
 **kw):
@@ -72,7 +73,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             media_url = urljoin(bootstrap["server_base_url"], media_url)
         media_url = urljoin(url, media_url)
         
-        flv = start_flv(dest_file,
+        [flv, frags] = start_flv(dest_file,
             metadata=metadata, bootstrap=bootstrap,
             session=session, url=media_url, player=player)
         
@@ -86,19 +87,16 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         
         progress_update(frontend, flv, 0, duration)
         
-        segs = iter_segs(bootstrap["seg_runs"])
-        strip_headers = False
-        for (frag, endtime) in iter_frags(bootstrap["frag_runs"]):
-            seg = next(segs)
+        for (index, seg, frag) in frags:
             if abort and abort.is_set():
                 raise SystemExit()
             response = get_frag(session, media_url, seg, frag, player=player)
             
             if abort and abort.is_set():
                 raise SystemExit()
-            buffer = frag_to_flv(response, strip_headers=strip_headers)
+            buffer = frag_to_flv(response, strip_headers=index)
             copyfileobj(buffer, flv)
-            endtime /= bootstrap["frag_timescale"]
+            endtime = (index + 1) * 6  # TODO: report time from FLV tags
             progress_update(frontend, flv, endtime, duration)
             strip_headers = True
         if not frontend:
@@ -183,7 +181,7 @@ def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
         metadata=metadata, bootstrap=bootstrap,
         session=session, url=url, player=player)
     if frags is not None:
-        return dest_file
+        return (dest_file, frags)
     
     flv = CounterWriter(dest_file)  # Track size even if piping to stdout
     
@@ -193,7 +191,8 @@ def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
     
     if metadata:
         flvlib.write_scriptdata(flv, metadata)
-    return flv
+    frags = iter_frags(iter_segs(bootstrap), iter_frag_runs(bootstrap))
+    return (flv, frags)
 
 def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
     try:
@@ -284,6 +283,10 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
             dest_file.seek(reader.tell())
             possibly_trunc(dest_file)
             copyfileobj(buffer, dest_file)
+            run["frag_index"] += offset + 1
+            run["first"] += offset + 1
+            run["span"] -= offset + 1
+            return iter_frags(segs, chain((run,), frag_runs))
     
     # EOF before first tag, or file descriptor not readable
     dest_file.seek(start)
@@ -424,8 +427,8 @@ def iter_frag_runs(bootstrap):
                 run["run_duration"] = (
                     next_run["timestamp"] - run["timestamp"])
             run["frag_index"] = frag_index
-            yield run
             frag_index += run["span"]
+            yield run
         if discontinuity == DISCONT_END:
             break
         run = next_run
@@ -453,36 +456,10 @@ def iter_segs(bootstrap, start=0):
             start = 0
             seg += 1
 
-def iter_frags(frag_runs):
-    # For each run of fragments
-    for (i, run) in enumerate(frag_runs):
-        discontinuity = run.get("discontinuity")
-        if discontinuity is not None:
-            if discontinuity == DISCONT_END:
-                break
-            continue
-        
-        start = run["first"]
-        time = run["timestamp"]
-        
-        # Find the next run to determine how many fragments in this run.
-        # Assume a single fragment if end of table, end of stream or fragment
-        # numbering discontinuity found. Skip over other kinds of
-        # discontinuities.
-        for next in frag_runs[i + 1:]:
-            discontinuity = next.get("discontinuity")
-            if discontinuity is None:
-                end = next["first"]
-                break
-            if discontinuity == DISCONT_END or discontinuity & DISCONT_FRAG:
-                end = start + 1
-                break
-        else:
-            end = start + 1
-        
-        for frag in range(start, end):
-            time += run["duration"]
-            yield (frag, time)
+def iter_frags(segs, runs):
+    for run in runs:
+        for i in range(run["span"]):
+            yield (run["frag_index"] + i, next(segs), run["first"] + i)
 
 def progress_update(frontend, flv, time, duration):
     size = flv.tell()
