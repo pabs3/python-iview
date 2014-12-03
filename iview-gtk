@@ -30,6 +30,15 @@ def del_window(widget=None):
     if num_windows == 0:
         Gtk.main_quit()
 
+def die(markup):
+    message = Gtk.MessageDialog(
+        parent=window,
+        message_type=Gtk.MessageType.ERROR,
+        buttons=Gtk.ButtonsType.CLOSE)
+    message.set_markup(markup)
+    message.run()
+    sys.exit(1)
+
 class Frontend:
     def __init__(self, parent, size):
         self.parent = parent
@@ -391,11 +400,7 @@ def main():
         iview.comm.get_config()
         load_programme()
     except HTTPError as error:
-        message = Gtk.MessageDialog(
-            parent=window,
-            message_type=Gtk.MessageType.ERROR,
-            buttons=Gtk.ButtonsType.CLOSE)
-        message.set_markup('<big><b>Download failed</b></big>\n\n'
+        die('<big><b>Download failed</b></big>\n\n'
             'Could not retrieve an important configuration file from iView.'
             ' Please make sure'
             ' you are connected to the Internet.\n\n'
@@ -404,8 +409,11 @@ def main():
             ' Try and find an updated version of this program,'
             ' or contact the author.\n\n'
             'URL: {}'.format(error.url))
-        message.run()
-        sys.exit(1)
+    except EnvironmentError as error:
+        from traceback import format_exception_only, print_exc
+        print_exc()
+        die('<big><b>Failed getting programme list</b></big>\n\n' +
+            ''.join(format_exception_only(type(error), error)))
 
     window.show_all()
     Gtk.main()

@@ -40,7 +40,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
 **kw):
     url = manifest_url(*pos, **kw)
     
-    with PersistentConnectionHandler() as connection:
+    with PersistentConnectionHandler(timeout=10) as connection:
         session = urllib.request.build_opener(connection)
         
         manifest = get_manifest(url, session)
