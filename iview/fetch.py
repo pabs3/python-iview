@@ -232,6 +232,7 @@ class HdsFetcher:
         if frontend is None:
             call = hds_open_file
         else:
+            frontend.resumable = True
             call = HdsThread
         return call(self.url, self.file, self.tokenhd,
             frontend=frontend,
