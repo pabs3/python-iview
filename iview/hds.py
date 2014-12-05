@@ -73,10 +73,6 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             media_url = urljoin(bootstrap["server_base_url"], media_url)
         media_url = urljoin(url, media_url)
         
-        [flv, frags] = start_flv(dest_file,
-            metadata=metadata, bootstrap=bootstrap,
-            session=session, url=media_url, player=player)
-        
         if not duration:
             if bootstrap["time"]:
                 duration = bootstrap["time"] / bootstrap["timescale"]
@@ -85,7 +81,11 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
                 assert scriptdata["name"] == b"onMetaData"
                 duration = scriptdata["value"].get("duration")
         
-        progress_update(frontend, flv, 0, duration)
+        [flv, frags] = start_flv(dest_file,
+            metadata=metadata, bootstrap=bootstrap,
+            session=session, url=media_url, player=player,
+            frontend=frontend, duration=duration,
+        )
         
         for (index, seg, frag) in frags:
             if abort and abort.is_set():
@@ -94,10 +94,10 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             
             if abort and abort.is_set():
                 raise SystemExit()
-            buffer = frag_to_flv(response, strip_headers=index)
-            copyfileobj(buffer, flv)
-            endtime = (index + 1) * 6  # TODO: report time from FLV tags
-            progress_update(frontend, flv, endtime, duration)
+            [buffer, endtime] = frag_to_flv(response, strip_headers=index)
+            if endtime is not None:
+                copyfileobj(buffer, flv)
+                progress_update(frontend, flv, endtime, duration)
             strip_headers = True
         if not frontend:
             print(file=stderr)
@@ -175,15 +175,19 @@ def get_bootstrap(media, *, session, url, player=""):
     
     return result
 
-def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
+def start_flv(dest_file, *,
+metadata, bootstrap, session, url, player="", frontend=None, duration=None):
     """Determine resume point, or write out start of FLV"""
     frags = resume_point(dest_file,
         metadata=metadata, bootstrap=bootstrap,
-        session=session, url=url, player=player)
+        session=session, url=url, player=player,
+        frontend=frontend, duration=duration,
+    )
     if frags is not None:
         return (dest_file, frags)
     
     flv = CounterWriter(dest_file)  # Track size even if piping to stdout
+    progress_update(frontend, flv, 0, duration)
     
     possibly_trunc(dest_file)
     # Assume audio and video tags will be present
@@ -194,7 +198,8 @@ def start_flv(dest_file, *, metadata, bootstrap, session, url, player=""):
     frags = iter_frags(iter_segs(bootstrap), iter_frag_runs(bootstrap))
     return (flv, frags)
 
-def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
+def resume_point(dest_file, *,
+metadata, bootstrap, session, url, player="", frontend=None, duration=None):
     try:
         start = dest_file.tell()  # Ensures file is seekable
         fd = dest_file.fileno()
@@ -242,6 +247,7 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
             # time, but it ensures that the complete fragment is written out
             # in case it was previously truncated.
             last_ts = tag["timestamp"]
+            progress_update(frontend, dest_file, last_ts / 1000, duration)
             ref_offset = 0
             for _ in range(3):  # Retry if fragment starts too late
                 if not ref_offset:
@@ -277,6 +283,12 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
                 msg = "Failed estimating resume fragment after 3 tries"
                 raise OverflowError(msg)
             
+            # Assumes timestamps in different fragments are unequal
+            seek_backwards(reader, tag["timestamp"])
+            dest_file.seek(reader.tell())
+            timestamp = tag["timestamp"] / 1000
+            progress_update(frontend, dest_file, timestamp, duration)
+            
             # Copy rest of fragment into buffer, now timestamp is verified
             for _ in range(32 * 1024 // 64):
                 if not proxy.read(64 * 1024):
@@ -285,17 +297,12 @@ def resume_point(dest_file, *, metadata, bootstrap, session, url, player=""):
                 raise OverflowError("Fragment exceeds 32 MiB")
             buffer.seek(0)
             
-            # Assumes timestamps in different fragments are unequal
-            seek_backwards(reader, tag["timestamp"])
-            msg = "Resuming FLV from {:.1F} s ({:.1F} MB)"
-            timestamp = tag["timestamp"] / 1000
-            size = (reader.tell() - start) / 1e6
-            print(msg.format(timestamp, size), file=stderr)
-            
-            buffer = frag_to_flv(buffer, strip_headers=frag_index)
-            dest_file.seek(reader.tell())
+            [buffer, timestamp] = frag_to_flv(
+                buffer, strip_headers=frag_index)
             possibly_trunc(dest_file)
-            copyfileobj(buffer, dest_file)
+            if timestamp is not None:
+                copyfileobj(buffer, dest_file)
+                progress_update(frontend, dest_file, timestamp, duration)
             run["frag_index"] += offset + 1
             run["first"] += offset + 1
             run["span"] -= offset + 1
@@ -325,7 +332,7 @@ def scan_last_tag(reader):
     except EOFError:
         if not good_tag:
             raise
-    reader.seek(tag_end - 4)
+    reader.seek(tag_end)
     return good_tag
 
 def get_frag(session, url, seg, frag, player=""):
@@ -374,8 +381,12 @@ def frag_to_flv(frag, strip_headers):
         
         streamcopy(frag, buffer, boxsize)
     
-    buffer.seek(0)
-    return buffer
+    if buffer.tell():
+        last_ts = flvlib.read_prev_tag(buffer)["timestamp"] / 1000
+        buffer.seek(0)
+    else:
+        last_ts = None
+    return (buffer, last_ts)
 
 def mdat_boxes(frag):
     for _ in range(100):
@@ -402,15 +413,13 @@ def find_frag_run(bootstrap, timestamp):
 
 def seek_backwards(reader, timestamp):
     while True:
-        length = read_int(reader, 4)
-        if not length:
+        tag = flvlib.read_prev_tag(reader)
+        if not tag:
             break
-        reader.seek(-4 - length, io.SEEK_CUR)
-        tag = flvlib.read_tag_header(reader)
         if tag["timestamp"] < timestamp:
             reader.seek(+tag["length"] + 4, io.SEEK_CUR)
             break
-        reader.seek(-flvlib.TAG_HEADER_LENGTH - 4, io.SEEK_CUR)
+        reader.seek(-flvlib.TAG_HEADER_LENGTH, io.SEEK_CUR)
 
 def iter_frag_runs(bootstrap):
     runs = iter(bootstrap["frag_runs"])

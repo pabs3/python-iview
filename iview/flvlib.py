@@ -2,6 +2,7 @@ from .utils import fastforward
 from struct import Struct
 from .utils import read_int, read_strict
 from .utils import setitem
+from io import SEEK_CUR
 
 def main():
     from sys import stdin
@@ -79,6 +80,14 @@ def read_tag_header(flv):
 SBYTE = Struct("=b")
 
 TAG_HEADER_LENGTH = 1 + 3 + 3 + 1 + 3
+
+def read_prev_tag(flv):
+    flv.seek(-4, SEEK_CUR)
+    length = read_int(flv, 4)
+    if not length:
+        return None
+    flv.seek(-4 - length, SEEK_CUR)
+    return read_tag_header(flv)
 
 tag_parsers = dict()
 
