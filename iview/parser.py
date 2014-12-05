@@ -80,8 +80,8 @@ def parse_series_api(soup):
     items are things like 'beached az Episode 8'.
     """
     
-    if not soup:  # Typically seen when a series index no longer exists
-        msg = "Empty API response; perhaps parameter value does not exist"
+    if not soup:  # Typically seen when a series no longer exists
+        msg = "Empty API response; perhaps the item does not exist"
         raise ValueError(msg)
     index_json = json.loads(soup.decode("UTF-8"))
     
