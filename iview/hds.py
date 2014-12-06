@@ -94,11 +94,19 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
             
             if abort and abort.is_set():
                 raise SystemExit()
-            [buffer, endtime] = frag_to_flv(response, strip_headers=index)
-            if endtime is not None:
-                copyfileobj(buffer, flv)
-                progress_update(frontend, flv, endtime, duration)
+            parser = frag_to_flv(response, flv, strip_headers=index,
+                frontend=frontend, duration=duration)
+            next(parser)  # Download up to first FLV tag
+            
+            if abort and abort.is_set():
+                raise SystemExit()
+            next(parser)  # Download rest of fragment
+            
+            if abort and abort.is_set():
+                raise SystemExit()
+            [] = parser  # Write to FLV
             strip_headers = True
+        
         if not frontend:
             print(file=stderr)
 
@@ -261,19 +269,17 @@ metadata, bootstrap, session, url, player="", frontend=None, duration=None):
                 frag = run["first"] + offset
                 response = get_frag(session, url, next(segs), frag,
                     player=player)
-                buffer = io.BytesIO()
-                proxy = WritingReader(response, buffer)
-                boxsize = next(mdat_boxes(proxy))
-                tag = flvlib.read_tag_header(proxy)
-                if flvlib.TAG_HEADER_LENGTH + tag["length"] + 4 > boxsize:
-                    raise EOFError("Tag extends past end of box")
-                if tag["timestamp"] <= last_ts:
+                parser = frag_to_flv(response, dest_file,
+                    strip_headers=frag_index,
+                    frontend=frontend, duration=duration)
+                timestamp = next(parser)
+                if timestamp <= last_ts:
                     break
                 print("Fragment {} starts at {:.3F} s > {:.3F} s".format(
-                    frag, tag["timestamp"] / 1000, last_ts / 1000),
+                    frag, timestamp / 1000, last_ts / 1000),
                     file=stderr)
                 response.close()
-                ref_time = tag["timestamp"] * bootstrap["frag_timescale"]
+                ref_time = timestamp * bootstrap["frag_timescale"]
                 ref_offset = offset
                 if not ref_offset:
                     # Fragment run starts too late; update timestamp in run
@@ -284,25 +290,12 @@ metadata, bootstrap, session, url, player="", frontend=None, duration=None):
                 raise OverflowError(msg)
             
             # Assumes timestamps in different fragments are unequal
-            seek_backwards(reader, tag["timestamp"])
+            seek_backwards(reader, timestamp)
             dest_file.seek(reader.tell())
-            timestamp = tag["timestamp"] / 1000
-            progress_update(frontend, dest_file, timestamp, duration)
+            next(parser)  # Finish downloading fragment
             
-            # Copy rest of fragment into buffer, now timestamp is verified
-            for _ in range(32 * 1024 // 64):
-                if not proxy.read(64 * 1024):
-                    break
-            else:
-                raise OverflowError("Fragment exceeds 32 MiB")
-            buffer.seek(0)
-            
-            [buffer, timestamp] = frag_to_flv(
-                buffer, strip_headers=frag_index)
             possibly_trunc(dest_file)
-            if timestamp is not None:
-                copyfileobj(buffer, dest_file)
-                progress_update(frontend, dest_file, timestamp, duration)
+            [] = parser  # Write to FLV
             run["frag_index"] += offset + 1
             run["first"] += offset + 1
             run["span"] -= offset + 1
@@ -340,26 +333,37 @@ def get_frag(session, url, seg, frag, player=""):
     url = urljoin(url, player)
     return http_get(session, url, ("video/f4f",))
 
-def frag_to_flv(frag, strip_headers):
+def frag_to_flv(frag, flv, *, strip_headers, frontend=None, duration=None):
+    """Yields two times:
+    1. The timestamp of the first FLV tag when it is parsed
+    2. After fully downloading the from HTTP, but before writing to FLV file
+    """
     strip_audio = strip_headers
     strip_video = strip_headers
     buffer = io.BytesIO()
+    first = True
     for boxsize in mdat_boxes(frag):
         # Strip AAC and AVC sequence headers from fragments other than the
         # first fragment. This assumes that the header tags only appear as
         # the first tag of their type in each fragment. This way the code
         # avoids unnecessarily scanning for them, which is much slower than
         # simply copying the stream.
-        while boxsize and (strip_audio or strip_video):
+        while boxsize and (strip_audio or strip_video or first):
             cache = io.BytesIO()
             proxy = WritingReader(frag, cache)
             tag = flvlib.read_tag_header(proxy)
             
-            if tag["type"] == flvlib.TAG_AUDIO:
+            if first:
+                timestamp = tag["timestamp"]
+                yield timestamp
+                progress_update(frontend, flv, timestamp / 1000, duration)
+                first = False
+            
+            if strip_audio and tag["type"] == flvlib.TAG_AUDIO:
                 strip_audio = False
                 parsed = flvlib.parse_audio_tag(proxy, tag)
                 skip = parsed.get("aac_type") == flvlib.AAC_HEADER
-            elif tag["type"] == flvlib.TAG_VIDEO:
+            elif strip_video and tag["type"] == flvlib.TAG_VIDEO:
                 strip_video = False
                 parsed = flvlib.parse_video_tag(proxy, tag)
                 skip = parsed.get("avc_type") == flvlib.AVC_HEADER
@@ -380,13 +384,14 @@ def frag_to_flv(frag, strip_headers):
                 raise EOFError("Tag extends past end of box")
         
         streamcopy(frag, buffer, boxsize)
+    if first:
+        raise ValueError("No FLV tags in fragment")
+    yield
     
-    if buffer.tell():
-        last_ts = flvlib.read_prev_tag(buffer)["timestamp"] / 1000
-        buffer.seek(0)
-    else:
-        last_ts = None
-    return (buffer, last_ts)
+    timestamp = flvlib.read_prev_tag(buffer)["timestamp"] / 1000
+    buffer.seek(0)
+    copyfileobj(buffer, flv)
+    progress_update(frontend, flv, timestamp, duration)
 
 def mdat_boxes(frag):
     for _ in range(100):
