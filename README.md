@@ -82,8 +82,6 @@ although it used to use the RTMP protocol.
 However, RTMP still seems to be used for the News 24 live stream,
 and the on-demand programmes still seem to be available
 from the old RTMP host.
-The RTMP downloader supports resuming interrupted files,
-even though the HDS downloader currently does not.
 
 To use RTMP, install _rtmpdump_.
 If building from source,
