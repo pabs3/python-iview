@@ -36,6 +36,11 @@ def descriptive_filename(series, title, urlpart):
     filename = re.sub('[\<\>\:\"\/\\\|\?\*]', '-', filename)
     return filename
 
+def is_resumable(url):
+    """The live News 24 RTMP stream is not resumable; everything else is a
+    resumable VOD file name"""
+    return urlsplit(url).scheme not in RTMP_PROTOCOLS
+
 def rtmpdump(execvp=False, resume=False, quiet=False, live=False,
 frontend=None, **kw):
     """Wrapper around "rtmpdump" or "flvstreamer" command
@@ -80,9 +85,6 @@ frontend=None, **kw):
 
     if resume:
         args.append('--resume')
-    
-    if frontend:
-        frontend.resumable = not live
     
     for exec_attempt in executables:
         args[0] = exec_attempt
@@ -169,12 +171,12 @@ execvp=False, dest_file=None, quiet=False, frontend=None):
         dest_file = get_filename(item.get("url", url))
     
     fetcher = get_fetcher(url, item=item)
+    if frontend:
+        frontend.resumable = is_resumable(item.get("url", url))
     return fetcher.fetch(execvp=execvp, dest_file=dest_file,
         quiet=quiet, frontend=frontend)
 
 def get_fetcher(url=None, *, item=dict()):
-    RTMP_PROTOCOLS = {'rtmp', 'rtmpt', 'rtmpe', 'rtmpte'}
-    
     url = item.get("url", url)
     if urlsplit(url).scheme in RTMP_PROTOCOLS:
         return RtmpFetcher(url, live=True)
@@ -222,6 +224,8 @@ class RtmpFetcher:
         kw.update(self.params)
         return rtmpdump(flv=dest_file, resume=resume, **kw)
 
+RTMP_PROTOCOLS = {'rtmp', 'rtmpt', 'rtmpe', 'rtmpte'}
+
 class HdsFetcher:
     def __init__(self, file, auth):
         self.url = urljoin(auth['server'], auth['path'])
@@ -232,7 +236,6 @@ class HdsFetcher:
         if frontend is None:
             call = hds_open_file
         else:
-            frontend.resumable = True
             call = HdsThread
         return call(self.url, self.file, self.tokenhd,
             frontend=frontend,

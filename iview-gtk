@@ -206,8 +206,11 @@ def on_download_clicked(widget, data=None):
         action=Gtk.FileChooserAction.SAVE,
         buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
                  Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
+    url = item[1]['url']
+    resumable = iview.fetch.is_resumable(url)
+    save_dialog.set_do_overwrite_confirmation(not resumable)
 
-    if save_location is None:
+    if not resumable and save_location is None:
         home = os.path.expanduser("~")
         if home != "~":
             save_location = home
@@ -222,9 +225,8 @@ def on_download_clicked(widget, data=None):
 
     program = model.get_value(model.iter_parent(selected_iter), 0)
     title = item[0]
-    url = item[1]['url']
     filename = iview.fetch.descriptive_filename(program, title, url)
-    if save_location is not None:
+    if not resumable and save_location is not None:
         # Method to increment file names inside brackets
         count = 1
         [root, ext] = os.path.splitext(filename)
