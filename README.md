@@ -95,4 +95,26 @@ Uh...good luck.
 
 There are a few variables that can be edited in the “config.py” file.
 
+Changes
+===
+
+* 7 Dec 2014: Sickbeard-compatible episode number in filenames; improve HTTP
+   connection handling; ability to resume HDS downloads; code and indentation
+   cleanups
+* 24 Mar 2014: Work around incomplete HTTP read, triggered by existing _gzip_
+   encoding workaround
+* 18 Jan 2014: Work around too many values being returned by series API
+* 2 Jan 2014: Fix downloading subtitles to stdout; add test suite
+* 31 Oct 2013: Fix date parsing error
+* 9 Oct 2013: Fix piping HDS to stdout; lots of code cleanup
+* 23 Aug 2013: Fix FLV file structure; basic support for categories
+* 18 Aug 2013: Fix for ampersand in subtitles; HDS improvements; future-proof
+   in case there is no player verification
+* 14 Jul 2013: Port to GTK 3; support unmetered Akamai HD streaming; drop
+   Python 2 support
+* 15 Jun 2013: Workaround for resuming zero-length files; workaround to avoid
+   Akamai HD streaming unmetered host
+* 3 Feb 2013: Batch download facility; port to Python 3 (still supporting
+   Python 2.6); drop Beautiful Soup dependency
+
 :wq
