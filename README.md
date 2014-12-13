@@ -1,6 +1,21 @@
-﻿Python command-line and GTK+ interface to ABC iView
+﻿Python iView
+============
 
-Copyright © 2009–2010 by Jeremy Visser <jeremy@visser.name>
+Why the fork
+------------
+
+This fork will only work on front-ends. Windows users don't have a GUI so the an average windows user can't use this. The CLI still works in windows so all they need is a better front-end. Also there is lots of unused meta-data (such as expiry date, rating, category, thumbnails etc.) accessible from the library but not the front-end. I would also like to make a cron runnable version that will download any new episodes of selected shows.
+
+New versions
+------------
+
+the planed front-ends are be:
+
+* iview-tk: A cross platform GUI written with the Tkinter library
+* iview-ng: A new CLI
+
+Licence
+=======
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,11 +35,17 @@ Requirements
 
 * Python 3.2+, <http://www.python.org/>
 
-For the GUI:
+For the old GUI (iview-gtk):
 
 * Py G Object, <https://live.gnome.org/PyGObject>.
   Debian and Ubuntu package: python3-gi.
 * GTK 3, <http://www.gtk.org/>, including the G Object introspection bindings
+
+For the new GUI (iview-tk):
+
+* Tkinter
+	* Windows and Mac OS X: installed by default
+	* Debian: `sudo apt-get install python3-tk`
 
 Optional dependencies:
 
@@ -36,11 +57,28 @@ Optional dependencies:
 Installation
 ============
 
-1. Make sure Python is installed and working.
-2. Either run ./iview-cli or ./iview-gtk.
+## Windows
+
+Make sure Python is installed and working. If you want to use the old GUI in windows you will
+
+## Mac OS X
+
+Make sure Python is installed and working.
+
+## Linux
+
+Install `python3` and `python3-tk`
+
+For the new GUI:
+*  run `python3 -c 'import tkinter'` to make sure that it all works.
 
 Usage
 =====
+
+Either run `./iview-cli` or `./iview-gtk`
+
+Old CLI (./iview-cli)
+---------------------
 
 Some usage examples are provided for your perusal.
 
@@ -74,47 +112,44 @@ Hopefully that will download an .flv file into your current directory,
 appropriately named. Downloaded files always use the FLV container format,
 despite any “.mp4” suffix in the original name.
 
-RTMP
-===
+Old GUI (./iview-gtk)
+---------------------
 
-Iview now seems to use the HDS protocol for most programmes,
-although it used to use the RTMP protocol.
-However, RTMP still seems to be used for the News 24 live stream,
-and the on-demand programmes still seem to be available
-from the old RTMP host.
+`./iview-gtk`
 
-To use RTMP, install _rtmpdump_.
-If building from source,
-copy _rtmpdump_ to somewhere within your $PATH (e.g. /usr/local/bin).
-The RTMP host may be forced with the “iview-cli --host AkamaiRTMP” option.
+New CLI (./iview-ng)
+--------------------
 
-Hacking
-=======
+Start with `./iview-ng`
 
-Uh...good luck.
+### Basic Usage:
 
-There are a few variables that can be edited in the “config.py” file.
+1. Find a show by searching with the find command  <br>
+	`iView $ find <name of show>`  <br>
+2. The epesodes for a show can be listed using eps and the number in the []'s from the output of the last find command  <br>
+	`iView $ eps 0`  <br>
+3. Get the show using get and the number in the []'s from the output of the last eps command  <br>
+	`iView $ get 1`  <br>
+			
+### Basic Usage Example:
 
-Changes
-===
+	iView $ find 7
+	[0] 7.30 9 eps
+	[1] That '70s Show 10 eps
+	iView $ eps 0
+	7.30:
+		 [0] [None] 7.30 12/12/2014
+		 [1] [None] 7.30 11/12/2014
+		 [2] [None] 7.30 10/12/2014
+		 [3] [None] 7.30 9/12/2014
+		 --- extra entries have been removed ---
+	iView $ get 1
 
-* 7 Dec 2014: Sickbeard-compatible episode number in filenames; improve HTTP
-   connection handling; ability to resume HDS downloads; code and indentation
-   cleanups
-* 24 Mar 2014: Work around incomplete HTTP read, triggered by existing _gzip_
-   encoding workaround
-* 18 Jan 2014: Work around too many values being returned by series API
-* 2 Jan 2014: Fix downloading subtitles to stdout; add test suite
-* 31 Oct 2013: Fix date parsing error
-* 9 Oct 2013: Fix piping HDS to stdout; lots of code cleanup
-* 23 Aug 2013: Fix FLV file structure; basic support for categories
-* 18 Aug 2013: Fix for ampersand in subtitles; HDS improvements; future-proof
-   in case there is no player verification
-* 14 Jul 2013: Port to GTK 3; support unmetered Akamai HD streaming; drop
-   Python 2 support
-* 15 Jun 2013: Workaround for resuming zero-length files; workaround to avoid
-   Akamai HD streaming unmetered host
-* 3 Feb 2013: Batch download facility; port to Python 3 (still supporting
-   Python 2.6); drop Beautiful Soup dependency
+Credit
+======
+
+2009-2011	Jeremy Visser <jeremy@visser.name>  
+2011-	Martin Panter <vadmium@gmail.com>  
+2014-	Scott Ramsay <scottramsay64@gmail.com>  
 
 :wq
