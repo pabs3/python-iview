@@ -136,6 +136,14 @@ class TestParse(TestCase):
             ("0000-00-00 00:00:00", None),  # QI series 6 episode 11
         ):
             self.assertEqual(expected, iview.parser.parse_date(input))
+    
+    def test_items(self):
+        import iview.parser
+        items = iview.parser.parse_series_items([
+            {"b": "Series 1 Episode 1\n"}, # Trim newline from end
+            {"b": "Series 1 Episode 2 \n(Final)"},  # Collapse spaces
+        ])
+        self.assertTrue(all("\n" not in i["title"] for i in items))
 
 import iview.utils
 import urllib.request
