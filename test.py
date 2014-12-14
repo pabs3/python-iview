@@ -140,7 +140,7 @@ class TestParse(TestCase):
     def test_items(self):
         import iview.parser
         items = iview.parser.parse_series_items([
-            {"b": "Series 1 Episode 1\n"}, # Trim newline from end
+            {"b": "Series 1 Episode 1\n"},  # Trim newline from end
             {"b": "Series 1 Episode 2 \n(Final)"},  # Collapse spaces
         ])
         self.assertTrue(all("\n" not in i["title"] for i in items))
