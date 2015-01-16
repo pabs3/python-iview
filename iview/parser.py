@@ -5,6 +5,8 @@ from datetime import datetime
 import re
 from .utils import xml_text_elements
 import sys
+from collections import Mapping
+import unicodedata
 
 def parse_config(soup):
     """There are lots of goodies in the config we get back from the ABC.
@@ -182,6 +184,12 @@ def parse_series_items(series_json):
         if 'url' not in result:
             result['url'] = result['livestream']
         
+        title = result.get('title')
+        if title is not None:
+            # Seen newline character in a title. Perhaps it is meant to be
+            # treated like HTML and collapsed into a single space.
+            result['title'] = " ".join(title.translate(BadCharMap()).split())
+        
         items.append(result)
 
     return items
@@ -226,6 +234,27 @@ def api_attributes(input, attributes):
             result[key] = value.replace('&amp;', '&')
     
     return result
+
+class BadCharMap(Mapping):
+    """Maps unwanted control characters to spaces"""
+    
+    # Only partially implementing the mapping interface
+    def __iter__(self):
+        raise NotImplementedError()
+    def __len__(self):
+        raise NotImplementedError()
+    
+    def __getitem__(self, cp):
+        category = unicodedata.category(chr(cp))
+        if category == "Cn":
+            # Remove the defined "non-characters", but leave other unassigned
+            # characters as-is
+            if 0xFDD0 <= cp < 0xFDF0 or cp & 0xFFFE == 0xFFFE:
+                return " "
+        elif (category.startswith("C") and category != "Cf" or
+                category in {"Zl", "Zp"}):
+            return " "
+        raise LookupError("Good character")
 
 def parse_highlights(xml):
 
