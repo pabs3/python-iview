@@ -6,9 +6,8 @@ import imp
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 import sys
-from io import BytesIO, TextIOWrapper
+from io import BytesIO, TextIOWrapper, BufferedReader
 from iview.utils import fastforward
-from errno import EPIPE, ECONNRESET
 
 try:  # Python 3.4
     from importlib import reload
@@ -237,68 +236,66 @@ class TestLoopbackHttp(TestPersistentHttp):
             "Server handle() not called for /one")
         
         data = b"3" * 3000000
-        try:
+        with self.assertRaises(http.client.BadStatusLine):
             self.session.open(self.url + "/two", data)
-        except EnvironmentError as err:
-            expected = {EPIPE, ECONNRESET}
-            self.assertIn(err.errno, expected, "Connection error expected")
-        else:
-            self.fail("POST should have failed")
         self.assertEqual(1, self.handle_calls,
             "Server handle() retried for POST")
 
 class TestMockHttp(TestPersistentHttp):
     class HTTPConnection(http.client.HTTPConnection):
-        def __init__(self, host):
-            http.client.HTTPConnection.__init__(self, host)
-        
         def connect(self):
             self.sock = TestMockHttp.Socket(
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Length: 6\r\n"
+                b"HTTP/1.1 200 First response\r\n"
+                b"Content-Length: 12\r\n"
                 b"\r\n"
-                b"body\r\n"
+                b"First body\r\n"
+                
+                b"HTTP/1.1 200 Second response\r\n"
+                b"Content-Length: 13\r\n"
+                b"\r\n"
+                b"Second body\r\n"
             )
     
     class Socket:
         def __init__(self, data):
-            self.data = data
+            self.reader = BufferedReader(BytesIO(data))
+            self.reader.close = lambda: None  # Avoid Python Issue 23377
         def sendall(self, *pos, **kw):
             pass
         def close(self, *pos, **kw):
             self.data = None
         def makefile(self, *pos, **kw):
-            return BytesIO(self.data)
+            return self.reader
     
     def run(self, *pos, **kw):
-        with substattr(iview.utils, self.HTTPConnection):
+        with substattr(iview.utils.http.client, self.HTTPConnection):
             return TestPersistentHttp.run(self, *pos, **kw)
     
     def test_reuse(self):
         """Test existing connection is reused"""
         with self.session.open("http://localhost/one") as response:
-            self.assertEqual(b"body\r\n", response.read())
+            self.assertEqual(b"First body\r\n", response.read())
         sock = self.connection._connection.sock
-        self.assertTrue(sock.data, "Disconnected after first request")
+        self.assertTrue(sock.reader, "Disconnected after first request")
         
         with self.session.open("http://localhost/two") as response:
-            self.assertEqual(b"body\r\n", response.read())
+            self.assertEqual(b"Second body\r\n", response.read())
         self.assertIs(sock, self.connection._connection.sock,
             "Socket connection changed")
-        self.assertTrue(sock.data, "Disconnected after second request")
+        self.assertTrue(sock.reader, "Disconnected after second request")
     
     def test_new_host(self):
         """Test connecting to second host"""
         with self.session.open("http://localhost/one") as response:
-            self.assertEqual(b"body\r\n", response.read())
+            self.assertEqual(b"First body\r\n", response.read())
         sock1 = self.connection._connection.sock
-        self.assertTrue(sock1.data, "Disconnected after first request")
+        self.assertTrue(sock1.reader, "Disconnected after first request")
         
         with self.session.open("http://otherhost/two") as response:
-            self.assertEqual(b"body\r\n", response.read())
+            self.assertEqual(b"First body\r\n", response.read())
         sock2 = self.connection._connection.sock
         self.assertIsNot(sock1, sock2, "Expected new socket connection")
-        self.assertTrue(sock2.data, "Disconnected after second request")
+        self.assertTrue(sock2.reader, "Disconnected after second request")
 
 import iview.comm
 
