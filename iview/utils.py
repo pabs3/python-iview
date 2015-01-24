@@ -4,11 +4,13 @@ from io import SEEK_CUR, SEEK_END
 import urllib.request
 import http.client
 from errno import EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET
+import builtins
 
-try:  # Python 3.3
-    ConnectionError
-except NameError:  # Python < 3.3
-    ConnectionError = ()
+py3p3_exceptions = ("ConnectionError", "ConnectionRefusedError",
+    "ConnectionAbortedError")
+for name in py3p3_exceptions:
+    if not hasattr(builtins, name):  # Python < 3.3
+        globals()[name] = ()
 
 DISCONNECTION_ERRNOS = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
 
