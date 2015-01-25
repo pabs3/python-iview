@@ -116,7 +116,7 @@ def get_bootstrap(media, *, session, url, player=""):
     if bsurl is not None:
         bsurl = urljoin(url, bsurl)
         bsurl = urljoin(bsurl, player)
-        with http_get(session, bsurl, "video/abst") as response:
+        with http_get(session, bsurl, ("video/abst",)) as response:
             bootstrap = response.read()
     else:
         bootstrap = io.BytesIO(bootstrap["data"])
