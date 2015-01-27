@@ -142,6 +142,11 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
     two host names happen to resolve to the same Internet address.
     """
     
+    conn_classes = {
+        "http": http.client.HTTPConnection,
+        "https": http.client.HTTPSConnection,
+    }
+    
     def __init__(self, *pos, **kw):
         self._type = None
         self._host = None
@@ -150,14 +155,14 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
         self._connection = None
     
     def default_open(self, req):
-        if req.type != "http":
+        if req.type not in self.conn_classes:
             return None
         
         if req.type != self._type or req.host != self._host:
             if self._connection:
                 self._connection.close()
-            self._connection = http.client.HTTPConnection(req.host,
-                *self._pos, **self._kw)
+            conn_class = self.conn_classes[req.type]
+            self._connection = conn_class(req.host, *self._pos, **self._kw)
             self._type = req.type
             self._host = req.host
         
