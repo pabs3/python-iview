@@ -248,9 +248,11 @@ class TestLoopbackHttp(TestPersistentHttp):
             "Server handle() retried for POST")
 
 class TestMockHttp(TestPersistentHttp):
-    def run(self, *pos, **kw):
-        with substattr(iview.utils.http.client, self.HTTPConnection):
-            return TestPersistentHttp.run(self, *pos, **kw)
+    def setUp(self):
+        super().setUp()
+        patcher = substattr(iview.utils.http.client, self.HTTPConnection)
+        patcher.__enter__()
+        self.addCleanup(patcher.__exit__, None, None, None)
 
 class TestHttpSocket(TestMockHttp):
     class HTTPConnection(http.client.HTTPConnection):
