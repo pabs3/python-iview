@@ -15,10 +15,11 @@ def main():
     print("header", dump(read_file_header(flv)))
     
     while True:
+        offset = flv.tell()
         tag = read_tag_header(flv)
         if tag is None:
             break
-        print(dump(tag))
+        print(offset, dump(tag))
         
         parser = tag_parsers.get(tag["type"])
         if parser:
