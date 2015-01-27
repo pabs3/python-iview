@@ -238,11 +238,10 @@ def api_attributes(input, attributes):
 class BadCharMap(Mapping):
     """Maps unwanted control characters to spaces"""
     
-    # Only partially implementing the mapping interface
     def __iter__(self):
-        raise NotImplementedError()
+        return iter(range(len(self)))
     def __len__(self):
-        raise NotImplementedError()
+        return sys.maxunicode + 1
     
     def __getitem__(self, cp):
         category = unicodedata.category(chr(cp))
@@ -254,7 +253,7 @@ class BadCharMap(Mapping):
         elif (category.startswith("C") and category != "Cf" or
                 category in {"Zl", "Zp"}):
             return " "
-        raise LookupError("Good character")
+        raise KeyError("Good character")
 
 def parse_highlights(xml):
 
