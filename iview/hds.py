@@ -24,9 +24,8 @@ from .utils import streamcopy, fastforward
 from shutil import copyfileobj
 import urllib.request
 from .utils import PersistentConnectionHandler, http_get
-from .utils import urlencode_param
 from sys import stderr
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode, quote_plus
 import io
 from .utils import xml_text_elements
 from . import flvlib
@@ -505,9 +504,10 @@ def progress_update(frontend, flv, time, duration):
         stderr.flush()
 
 def manifest_url(url, file, hdnea=None):
-    file += "/manifest.f4m?hdcore="
+    query = [("hdcore", "")]  # Produces 403 Forbidden without this
     if hdnea:
-        file += "&hdnea=" + urlencode_param(hdnea)
+        query.append(("hdnea", hdnea))
+    file += "/manifest.f4m?" + urlencode(query)
     return urljoin(url, file)
 
 def get_manifest(url, session):
@@ -640,9 +640,11 @@ def player_verification(manifest, player, key):
     sig = hmac.new(key, msg.encode("ascii"), sha256)
     pvtoken = "{}~hmac={}".format(msg, sig.hexdigest())
     
-    # The "hdntl" parameter must be passed either in the URL or as a cookie
-    return "?pvtoken={}&{}".format(
-        urlencode_param(pvtoken), urlencode_param(hdntl))
+    # The "hdntl" parameter must be passed either in the URL or as a cookie;
+    # however the "pvtoken" parameter only seems to work in the URL
+    pvtoken = urlencode((("pvtoken", pvtoken),))
+    hdntl = quote_plus(hdntl, safe="=")
+    return "?{}&{}".format(pvtoken, hdntl)
 
 def skip_box(stream):
     (_, size) = read_box_header(stream)

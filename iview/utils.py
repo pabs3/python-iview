@@ -1,6 +1,5 @@
 import zlib
 from io import BufferedIOBase
-from urllib.parse import quote_plus
 from io import SEEK_CUR, SEEK_END
 import urllib.request
 import http.client
@@ -46,13 +45,6 @@ def read_strict(stream, size):
     if len(data) != size:
         raise EOFError()
     return data
-
-value_unsafe = '%+&;#'
-VALUE_SAFE = ''.join(chr(c) for c in range(33, 127)
-    if chr(c) not in value_unsafe)
-def urlencode_param(value):
-    """Minimal URL encoding for query parameter"""
-    return quote_plus(value, safe=VALUE_SAFE)
 
 class CounterWriter(BufferedIOBase):
     def __init__(self, output):
