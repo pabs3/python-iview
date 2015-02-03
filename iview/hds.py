@@ -534,7 +534,7 @@ def get_manifest(url, session):
     parsed.setdefault("baseURL", url)
     
     bootstraps = dict()
-    for bootstrap in manifest.findall(F4M_NAMESPACE + "bootstrapInfo"):
+    for bootstrap in manifest.iterfind(F4M_NAMESPACE + "bootstrapInfo"):
         item = dict(bootstrap.items())
         
         bootstrap = bootstrap.text
@@ -545,7 +545,7 @@ def get_manifest(url, session):
         bootstraps[item.get("id")] = item
     
     parsed["media"] = list()
-    for media in manifest.findall(F4M_NAMESPACE + "media"):
+    for media in manifest.iterfind(F4M_NAMESPACE + "media"):
         item = dict(media.items())
         item.update(xml_text_elements(media, F4M_NAMESPACE))
         item["bootstrapInfo"] = bootstraps[item.get("bootstrapInfoId")]
