@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 import sys
 from io import BytesIO, TextIOWrapper, BufferedReader
 from iview.utils import fastforward
+from errno import ECONNREFUSED
 
 try:  # Python 3.4
     from importlib import reload
@@ -242,9 +243,14 @@ class TestLoopbackHttp(TestPersistentHttp):
             "Server handle() retried for POST")
 
 class TestMockHttp(TestPersistentHttp):
+    def run(self, *pos, **kw):
+        with substattr(iview.utils.http.client, self.HTTPConnection):
+            return TestPersistentHttp.run(self, *pos, **kw)
+
+class TestHttpSocket(TestMockHttp):
     class HTTPConnection(http.client.HTTPConnection):
         def connect(self):
-            self.sock = TestMockHttp.Socket(
+            self.sock = TestHttpSocket.Socket(
                 b"HTTP/1.1 200 First response\r\n"
                 b"Content-Length: 12\r\n"
                 b"\r\n"
@@ -266,10 +272,6 @@ class TestMockHttp(TestPersistentHttp):
             self.data = None
         def makefile(self, *pos, **kw):
             return self.reader
-    
-    def run(self, *pos, **kw):
-        with substattr(iview.utils.http.client, self.HTTPConnection):
-            return TestPersistentHttp.run(self, *pos, **kw)
     
     def test_reuse(self):
         """Test existing connection is reused"""
@@ -296,6 +298,30 @@ class TestMockHttp(TestPersistentHttp):
         sock2 = self.connection._connection.sock
         self.assertIsNot(sock1, sock2, "Expected new socket connection")
         self.assertTrue(sock2.reader, "Disconnected after second request")
+
+class TestHttpEstablishError(TestMockHttp):
+    """Connection establishment errors should not trigger a retry"""
+    class HTTPConnection(http.client.HTTPConnection):
+        def __init__(self, *pos, **kw):
+            self.connect_count = 0
+            super().__init__(*pos, **kw)
+        def connect(self):
+            self.connect_count += 1
+            raise self.connect_exception
+    
+    def test_refused(self):
+        exception = EnvironmentError(ECONNREFUSED, "Mock connection refusal")
+        self.HTTPConnection.connect_exception = exception
+        try:
+            self.session.open("http://dummy")
+        except http.client.HTTPException:
+            raise
+        except EnvironmentError as err:
+            if err.errno != ECONNREFUSED:
+                raise
+        else:
+            self.fail("ECONNREFUSED not raised")
+        self.assertEqual(1, self.connection._connection.connect_count)
 
 import iview.comm
 
