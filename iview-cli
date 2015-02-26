@@ -129,7 +129,7 @@ def batch(batch_file):
             if last_only:
                 # This last_only feature is experimental, I am not sure which field to 
                 # use to determine the most recent episode.
-                if last_episode == None or episode['date'] > last_episode['date']:
+                if last_episode is None or episode['date'] > last_episode['date']:
                     last_episode = episode
             else:
                 batch_fetch_program(episode, series=series_comment[series_id])

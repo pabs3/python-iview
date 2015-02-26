@@ -38,7 +38,7 @@ def write_file_header(flv, audio=True, video=True):
 def read_file_header(flv):
     signature = read_strict(flv, 3)
     if signature != SIGNATURE:
-        raise ValueError(signature)
+        raise ValueError(repr(signature))
     (version, flags) = read_strict(flv, 2)
     if version != FILE_VERSION:
         raise ValueError(version)
