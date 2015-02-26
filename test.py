@@ -49,13 +49,14 @@ class TestCli(TestCase):
                 file.write(
                     "[batch]\n"
                     "destination: {}\n"
-                    "100: Dummy series\n".format(dir)
+                    "100: Description ignored\n".format(dir)
                 )
             class comm:
                 def get_config():
                     pass
-                def get_series_items(id):
-                    return (dict(url="programme.mp4", title="Dummy title"),)
+                def get_series_items(id, get_meta):
+                    items = (dict(url="programme.mp4", title="Dummy title"),)
+                    return (items, dict(title="Dummy series"))
             def fetch_program(url, *, execvp, dest_file, quiet):
                 nonlocal fetched
                 fetched = dest_file

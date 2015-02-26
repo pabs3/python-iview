@@ -98,7 +98,6 @@ def batch(batch_file):
 
     batch_destination = '.'
     series_ids = []
-    series_comment = {}
     last_only = False
 
     # separate options from the series ids
@@ -112,7 +111,6 @@ def batch(batch_file):
             # Note: currently the value after the series_id in the batch file
             # is only used as a comment for the user.
             series_ids.append(key)
-            series_comment[key] = value
 
     # move to where the files should be downloaded
     os.chdir(batch_destination)
@@ -124,7 +122,8 @@ def batch(batch_file):
         last_episode = None
 
         # loop through the episodes
-        episodes = iview.comm.get_series_items(series_id)
+        result = iview.comm.get_series_items(series_id, get_meta=True)
+        [episodes, metadata] = result
         for episode in episodes:
             if last_only:
                 # This last_only feature is experimental, I am not sure which field to 
@@ -132,11 +131,11 @@ def batch(batch_file):
                 if last_episode is None or episode['date'] > last_episode['date']:
                     last_episode = episode
             else:
-                batch_fetch_program(episode, series=series_comment[series_id])
+                batch_fetch_program(episode, series=metadata['title'])
 
         # Last only means we only get one episode for the series
         if last_only:
-            batch_fetch_program(last_episode, series=series_comment[series_id])
+            batch_fetch_program(last_episode, series=metadata['title'])
 
 def batch_fetch_program(episode, series):
     # Only print notification messages for episodes that have never been downloaded before.
@@ -147,15 +146,11 @@ def batch_fetch_program(episode, series):
     # urls also have '.mp4' extension but downloaded files end in '.flv'
     (base, ext) = os.path.splitext(filepart)
 
-    if series:
-        title = episode['title']
-        filename = iview.fetch.descriptive_filename(series, title, base)
-        if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
-            print("{} already exists as {}.flv so should be moved".format(filename, base))
-            return
-
-    else:
-        filename = base + '.flv'
+    title = episode['title']
+    filename = iview.fetch.descriptive_filename(series, title, base)
+    if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
+        print("{} already exists as {}.flv so should be moved".format(filename, base))
+        return
 
     if not os.path.isfile(filename):
         msg = "getting {} - {} -> {}".format(episode['title'], episode['url'], filename)
