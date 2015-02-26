@@ -139,15 +139,16 @@ def batch(batch_file):
 
 def batch_fetch_program(episode, series):
     # Only print notification messages for episodes that have never been downloaded before.
+    url = episode['url']
 
     # urls sometimes include a path like 'news/' or 'kids/'
-    (pathpart, filepart) = os.path.split(episode['url'])
+    (pathpart, filepart) = os.path.split(url)
 
     # urls also have '.mp4' extension but downloaded files end in '.flv'
     (base, ext) = os.path.splitext(filepart)
 
     title = episode['title']
-    filename = iview.fetch.descriptive_filename(series, title, base)
+    filename = iview.fetch.descriptive_filename(series, title, url)
     if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
         print("{} already exists as {}.flv so should be moved".format(filename, base))
         return
