@@ -25,9 +25,11 @@ class downloadItem:
 		self.stopped = False
 		self.failed = False
 		self.going = False
+		self.doneIt = False
 		self.percent = 0
-		checkDir(folderName.get(1.0, END)[:-1])
-		fname = folderName.get(1.0, END)[:-1] + iview.fetch.descriptive_filename(self.title, self.title, url)
+		self.dir = addPathSep(folderName.get(1.0, END)[:-1])
+		checkDir(self.dir)
+		fname = self.dir + iview.fetch.descriptive_filename(self.title, self.title, url)
 		self.job = addDownload(eps[epNum], dest_file=fname, frontend=self)
 		self.job.start()
 	
@@ -44,13 +46,20 @@ class downloadItem:
 	def get_display(self):
 		if self.going:
 			return '{:.1%} {} {} MB'.format(self.percent, self.title, trunk(self.size / 1e6, 1))
+		elif self.doneIt:
+			return 'Done: {}'.format(self.title)
+		elif self.stopped:
+			return 'Stopped: {}'.format(self.title)
+		elif self.failed:
+			return 'Failed: {}'.format(self.title)
 		else:
-			return '100% {} Done'.format(self.title)
+			return 'Starting: {}'.format(self.title)
 	
 	def update_display(self):
 		listDownloads.insert(0, self.get_display())
 	
 	def done(self, stopped=False, failed=False):
+		self.doneIt = True
 		self.going = False
 		self.stopped = stopped
 		self.failed = failed
@@ -62,8 +71,14 @@ def checkDir(dir):
 def about():
 	print('//TODO About Button')
 
+def addPathSep(dir):
+	if dir.endswith(os.sep):
+		return dir
+	else:
+		return dir + os.sep
+
 def chooseDir():
-	dir = askdirectory(initialdir=folderName.get(1.0, END)[:-1], parent=window)
+	dir = addPathSep(askdirectory(initialdir=folderName.get(1.0, END)[:-1], parent=window)) # [:-1] is used to remove newline
 	folderName.delete(1.0, END)
 	folderName.insert(END, dir)
 
@@ -74,7 +89,6 @@ def refreshDownloadList():
 
 def download():
 	global listEps, listShows
-	print('//TODO Download Button')
 	print(showNum)
 	print(epNum)
 	def do():
@@ -172,4 +186,4 @@ def setupGui():
 if __name__ == '__main__':
 	iview.comm.get_config()
 	setupGui()
-	window.mainloop();
+	window.mainloop()
