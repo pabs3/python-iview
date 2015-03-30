@@ -10,6 +10,7 @@ import configparser
 from errno import EPIPE
 from sys import stderr
 import urllib.parse
+from iview.utils import encodeerrors
 
 def config():
     try:
@@ -36,8 +37,10 @@ def category(keyword):
     config()
     index = iview.comm.get_keyword(keyword)
 
+    if not sys.stdout:
+        return
     for series in index:
-        print(series['title'] + ':')
+        sys.stdout.write(encodeerrors(series['title'] + ':\n', sys.stdout))
         print_series_items(series['items'], indent='\t')
 
 def index():
@@ -46,8 +49,11 @@ def index():
     config()
     index = iview.comm.get_index()
 
+    if not sys.stdout:
+        return
     for series in index:
-        print('{id}\t{title}'.format_map(series))
+        title = encodeerrors(series['title'], sys.stdout)
+        sys.stdout.write('{}\t{}\n'.format(series['id'], title))
 
 def batch_index():
     """Downloads the iView index, and prints the corresponding series and IDs in a format
@@ -56,17 +62,22 @@ def batch_index():
     config()
     index = iview.comm.get_index()
 
+    if not sys.stdout:
+        return
     for series in index:
-        print('{id}: {title}'.format_map(series))
+        title = encodeerrors(series['title'], sys.stdout)
+        sys.stdout.write('{}: {}\n'.format(series['id'], title))
 
 def series(series_id):
     config()
     print_series_items(iview.comm.get_series_items(series_id))
 
 def print_series_items(items, indent=''):
+    if not sys.stdout:
+        return
     for item in items:
-        print('{}{}\t({})'.format(indent,
-            item['title'], item['url']))
+        title = encodeerrors(item['title'], sys.stdout)
+        sys.stdout.write('{}{}\t({})\n'.format(indent, title, item['url']))
 
 def print_auth():
     config()
