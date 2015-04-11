@@ -34,9 +34,9 @@ from .utils import WritingReader
 from errno import ESPIPE, EBADF, EINVAL
 import os
 from itertools import chain
+from .config import akamaihd_key
 
-def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
-**kw):
+def fetch(*pos, dest_file, frontend=None, abort=None, player=None, **kw):
     url = manifest_url(*pos, **kw)
     
     with PersistentConnectionHandler() as connection:
@@ -44,7 +44,7 @@ def fetch(*pos, dest_file, frontend=None, abort=None, player=None, key=None,
         
         manifest = get_manifest(url, session)
         url = manifest["baseURL"]
-        player = player_verification(manifest, player, key)
+        player = player_verification(manifest, player)
         
         duration = manifest.get("duration")
         if duration:
@@ -634,13 +634,13 @@ DISCONT_END = 0
 DISCONT_FRAG = 1
 DISCONT_TIME = 2
 
-def player_verification(manifest, player, key):
+def player_verification(manifest, player):
     pv = manifest.get("pv-2.0")
     if not pv:
         return ""
     (data, hdntl) = pv.split(";")
     msg = "st=0~exp=9999999999~acl=*~data={}!{}".format(data, player)
-    sig = hmac.new(key, msg.encode("ascii"), sha256)
+    sig = hmac.new(akamaihd_key, msg.encode("ascii"), sha256)
     pvtoken = "{}~hmac={}".format(msg, sig.hexdigest())
     
     # The "hdntl" parameter must be passed either in the URL or as a cookie;

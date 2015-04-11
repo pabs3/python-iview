@@ -240,7 +240,7 @@ class HdsFetcher:
         return call(self.url, self.tokenhd,
             frontend=frontend,
             player=config.akamaihd_player,
-            key=config.akamaihd_key, **kw)
+        **kw)
 
 class HdsThread(threading.Thread):
     def __init__(self, *pos, frontend, **kw):
