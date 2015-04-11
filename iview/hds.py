@@ -24,7 +24,7 @@ from .utils import streamcopy, fastforward
 from shutil import copyfileobj
 import urllib.request
 from .utils import PersistentConnectionHandler, http_get
-from sys import stderr
+from sys import stderr, stdout
 from urllib.parse import urljoin, urlencode, quote_plus, urlsplit
 import io
 from .utils import xml_text_elements
@@ -36,7 +36,8 @@ import os
 from itertools import chain
 from .config import akamaihd_key
 
-def fetch(*pos, dest_file, frontend=None, abort=None, player=None, **kw):
+def fetch(*pos, dest_file=stdout.buffer, frontend=None, abort=None,
+        player=None, **kw):
     url = manifest_url(*pos, **kw)
     
     with PersistentConnectionHandler() as connection:
