@@ -5,6 +5,7 @@ import urllib.request
 import http.client
 from errno import EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET
 import builtins
+from urllib.parse import urlsplit
 
 py3p3_exceptions = ("ConnectionError", "ConnectionRefusedError",
     "ConnectionAbortedError")
@@ -188,6 +189,9 @@ class PersistentConnectionHandler(urllib.request.BaseHandler):
         
         # Odd impedance mismatch between "http.client" and "urllib.request"
         response.msg = response.reason
+        # HTTPResponse secretly already has a geturl() method, but needs a
+        # "url" attribute to be set
+        response.url = "{}://{}{}".format(req.type, req.host, req.selector)
         return response
     
     def _attempt_request(self, req, headers):
@@ -219,12 +223,14 @@ def http_get(session, url, types=None, *, headers=dict(), **kw):
     req = urllib.request.Request(url, headers=headers, **kw)
     response = session.open(req)
     try:
-        headers = response.info()
-        headers.set_default_type(None)
-        type = headers.get_content_type()
-        if types is not None and type not in types:
-            msg = "Unexpected content type {}"
-            raise TypeError(msg.format(type))
+        # Content negotiation does not make sense with local files
+        if urlsplit(response.geturl()).scheme != "file":
+            headers = response.info()
+            headers.set_default_type(None)
+            type = headers.get_content_type()
+            if types is not None and type not in types:
+                msg = "Unexpected content type {}"
+                raise TypeError(msg.format(type))
         return response
     except:
         response.close()
