@@ -10,7 +10,9 @@ py3p3_exceptions = ("ConnectionError", "ConnectionRefusedError",
     "ConnectionAbortedError")
 for name in py3p3_exceptions:
     if not hasattr(builtins, name):  # Python < 3.3
-        globals()[name] = ()
+        class DummyException(EnvironmentError):
+            pass
+        globals()[name] = DummyException
 
 DISCONNECTION_ERRNOS = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
 
