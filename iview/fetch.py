@@ -228,8 +228,8 @@ RTMP_PROTOCOLS = {'rtmp', 'rtmpt', 'rtmpe', 'rtmpte'}
 
 class HdsFetcher:
     def __init__(self, file, auth):
-        self.url = urljoin(auth['server'], auth['path'])
-        self.file = file
+        base = urljoin(auth['server'], auth['path'])
+        self.url = urljoin(base, file + '/manifest.f4m')
         self.tokenhd = auth.get('tokenhd')
     
     def fetch(self, *, frontend, execvp, quiet, **kw):
@@ -237,7 +237,7 @@ class HdsFetcher:
             call = hds_open_file
         else:
             call = HdsThread
-        return call(self.url, self.file, self.tokenhd,
+        return call(self.url, self.tokenhd,
             frontend=frontend,
             player=config.akamaihd_player,
             key=config.akamaihd_key, **kw)

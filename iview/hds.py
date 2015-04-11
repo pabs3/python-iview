@@ -25,7 +25,7 @@ from shutil import copyfileobj
 import urllib.request
 from .utils import PersistentConnectionHandler, http_get
 from sys import stderr
-from urllib.parse import urljoin, urlencode, quote_plus
+from urllib.parse import urljoin, urlencode, quote_plus, urlsplit
 import io
 from .utils import xml_text_elements
 from . import flvlib
@@ -503,12 +503,15 @@ def progress_update(frontend, flv, time, duration):
             time, duration, size / 1e6))
         stderr.flush()
 
-def manifest_url(url, file, hdnea=None):
+def manifest_url(url, hdnea=None):
     query = [("hdcore", "")]  # Produces 403 Forbidden without this
     if hdnea:
         query.append(("hdnea", hdnea))
-    file += "/manifest.f4m?" + urlencode(query)
-    return urljoin(url, file)
+    query = urlencode(query)
+    base_query = urlsplit(url).query
+    if base_query:
+        query = base_query + "&" + query
+    return urljoin(url, "?" + query)
 
 def get_manifest(url, session):
     """Downloads the manifest specified by the URL and parses it
