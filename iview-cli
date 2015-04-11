@@ -278,25 +278,29 @@ def main():
     if args.ip is not None:
         iview.config.ip = args.ip
 
-    if args.programme:
-        programme()
-    if args.category is not None:
-        category(args.category)
-    if args.index:
-        index()
-    if args.bindex:
-        batch_index()
-    if args.series is not None:
-        series(args.series)
-    if args.print_auth:
-        print_auth()
-    
-    if args.download is not None:
-        download(args.download, args.output)
-    elif args.subtitles is not None:
-        subtitles(args.subtitles, args.output)
-    elif args.batch is not None:
-        batch(args.batch)
+    try:
+        if args.programme:
+            programme()
+        if args.category is not None:
+            category(args.category)
+        if args.index:
+            index()
+        if args.bindex:
+            batch_index()
+        if args.series is not None:
+            series(args.series)
+        if args.print_auth:
+            print_auth()
+        
+        if args.download is not None:
+            download(args.download, args.output)
+        elif args.subtitles is not None:
+            subtitles(args.subtitles, args.output)
+        elif args.batch is not None:
+            batch(args.batch)
+    except iview.comm.Error as error:
+        print(error, file=stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

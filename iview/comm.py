@@ -1,6 +1,7 @@
 import os
 import urllib.request
 import sys
+import socket
 from . import config
 from . import parser
 import gzip
@@ -25,12 +26,15 @@ def fetch_url(url, types=None):
     from .utils import PersistentConnectionHandler
     with PersistentConnectionHandler(timeout=10) as connection:
         session = urllib.request.build_opener(connection)
-        with http_get(session, url, types, headers=headers) as http:
-            headers = http.info()
-            if headers.get('content-encoding') == 'gzip':
-                return gzip.GzipFile(fileobj=http).read()
-            else:
-                return http.read()
+        try:
+            with http_get(session, url, types, headers=headers) as http:
+                headers = http.info()
+                if headers.get('content-encoding') == 'gzip':
+                    return gzip.GzipFile(fileobj=http).read()
+                else:
+                    return http.read()
+        except socket.timeout as error:
+            raise Error("Timeout accessing {!r}".format(url)) from error
 
 def maybe_fetch(url, type=None):
     """Only fetches a URL if it is not in the cache directory.
@@ -174,6 +178,9 @@ def configure_socks_proxy():
         sys.exit(3)
 
     socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, config.socks_proxy_host, config.socks_proxy_port)
+
+class Error(EnvironmentError):
+    pass
 
 if config.socks_proxy_host is not None:
     configure_socks_proxy()
