@@ -1,15 +1,16 @@
 import zlib
 from io import BufferedIOBase
-from urllib.parse import quote_plus
 from io import SEEK_CUR, SEEK_END
 import urllib.request
 import http.client
 from errno import EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET
+import builtins
 
-try:  # Python 3.3
-    ConnectionError
-except NameError:  # Python < 3.3
-    ConnectionError = ()
+py3p3_exceptions = ("ConnectionError", "ConnectionRefusedError",
+    "ConnectionAbortedError")
+for name in py3p3_exceptions:
+    if not hasattr(builtins, name):  # Python < 3.3
+        globals()[name] = ()
 
 DISCONNECTION_ERRNOS = {EPIPE, ESHUTDOWN, ENOTCONN, ECONNRESET}
 
@@ -46,13 +47,6 @@ def read_strict(stream, size):
     if len(data) != size:
         raise EOFError()
     return data
-
-value_unsafe = '%+&;#'
-VALUE_SAFE = ''.join(chr(c) for c in range(33, 127)
-    if chr(c) not in value_unsafe)
-def urlencode_param(value):
-    """Minimal URL encoding for query parameter"""
-    return quote_plus(value, safe=VALUE_SAFE)
 
 class CounterWriter(BufferedIOBase):
     def __init__(self, output):
@@ -233,3 +227,22 @@ def http_get(session, url, types=None, *, headers=dict(), **kw):
     except:
         response.close()
         raise
+
+def encodeerrors(text, textio, errors="replace"):
+    """Prepare a string with a fallback encoding error handler
+    
+    If the string is not encodable to the output stream,
+    the string is passed through a codec error handler."""
+    
+    encoding = getattr(textio, "encoding", None)
+    if encoding is None:
+        # TextIOBase, and therefore StringIO, etc,
+        # have an "encoding" attribute,
+        # despite not doing any encoding
+        return text
+    
+    try:
+        text.encode(encoding, textio.errors or "strict")
+    except UnicodeEncodeError:
+        text = text.encode(encoding, errors).decode(encoding)
+    return text

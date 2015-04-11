@@ -16,7 +16,7 @@ def parse_config(soup):
 
     xml = XML(soup)
     params = dict()
-    for param in xml.getiterator('param'):
+    for param in xml.iter('param'):
         params.setdefault(param.get('name'), param.get('value'))
 
     # should look like "rtmp://cp53909.edgefcs.net/ondemand"
@@ -126,7 +126,7 @@ def category_node(xml):
 
     # Get all the top level categories
     
-    for cat in xml.findall('category'):
+    for cat in xml.iterfind('category'):
         item = dict(cat.items())
         
         genre = item.get("genre")
@@ -261,7 +261,7 @@ def parse_highlights(xml):
 
     highlightList = []
 
-    for series in soup.findall('series'):
+    for series in soup.iterfind('series'):
         tempSeries = dict(series.items())
         tempSeries.update(xml_text_elements(series))
         highlightList.append(tempSeries)
@@ -296,7 +296,7 @@ def parse_captions(soup):
     output = ''
 
     i = 1
-    for title in xml.getiterator('title'):
+    for title in xml.iter('title'):
         start = title.get('start')
         (start, startfract) = start.rsplit(':', 1)
         end = title.get('end')
