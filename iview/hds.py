@@ -116,70 +116,70 @@ def get_bootstrap(media, *, session, url, player=""):
     if bsurl is not None:
         bsurl = urljoin(url, bsurl)
         bsurl = urljoin(bsurl, player)
-        with http_get(session, bsurl, ("video/abst",)) as response:
-            bootstrap = response.read()
+        bootstrap = http_get(session, bsurl, ("video/abst",))
     else:
         bootstrap = io.BytesIO(bootstrap["data"])
     
-    (type, _) = read_box_header(bootstrap)
-    assert type == b"abst"
-    
-    result = dict()
-    
-    fastforward(bootstrap, 1 + 3 + 4)  # Version, flags, bootstrap version
-    
-    flags = read_int(bootstrap, 1)
-    flags >> 6  # Profile
-    bool(flags & 0x20)  # Live flag
-    bool(flags & 0x10)  # Update flag
-    
-    result["timescale"] = read_int(bootstrap, 4)  # Time scale
-    result["time"] = read_int(bootstrap, 8)  # Media time at end of bootstrap
-    fastforward(bootstrap, 8)  # SMPTE timecode offset
-    
-    result["movie_identifier"] = read_string(bootstrap).decode("utf-8")
-    
-    count = read_int(bootstrap, 1)  # Server table
-    for _ in range(count):
-        entry = read_string(bootstrap)
-        if "server_base_url" not in result:
-            result["server_base_url"] = entry.decode("utf-8")
-    
-    count = read_int(bootstrap, 1)  # Quality table
-    for _ in range(count):
-        quality = read_string(bootstrap)
-        if "highest_quality" not in result:
-            result["highest_quality"] = quality.decode("utf-8")
-    
-    read_string(bootstrap)  # DRM data
-    read_string(bootstrap)  # Metadata
-    
-    # Read segment and fragment run tables. Read the first table of each type
-    # that is understood, and skip any subsequent ones.
-    count = read_int(bootstrap, 1)
-    for _ in range(count):
+    with bootstrap:
+        (type, _) = read_box_header(bootstrap)
+        assert type == b"abst"
+        
+        result = dict()
+        
+        fastforward(bootstrap, 1 + 3 + 4)  # Version, flags, bootstrap version
+        
+        flags = read_int(bootstrap, 1)
+        flags >> 6  # Profile
+        bool(flags & 0x20)  # Live flag
+        bool(flags & 0x10)  # Update flag
+        
+        result["timescale"] = read_int(bootstrap, 4)  # Time scale
+        result["time"] = read_int(bootstrap, 8)  # Media time at end of bootstrap
+        fastforward(bootstrap, 8)  # SMPTE timecode offset
+        
+        result["movie_identifier"] = read_string(bootstrap).decode("utf-8")
+        
+        count = read_int(bootstrap, 1)  # Server table
+        for _ in range(count):
+            entry = read_string(bootstrap)
+            if "server_base_url" not in result:
+                result["server_base_url"] = entry.decode("utf-8")
+        
+        count = read_int(bootstrap, 1)  # Quality table
+        for _ in range(count):
+            quality = read_string(bootstrap)
+            if "highest_quality" not in result:
+                result["highest_quality"] = quality.decode("utf-8")
+        
+        read_string(bootstrap)  # DRM data
+        read_string(bootstrap)  # Metadata
+        
+        # Read segment and fragment run tables. Read the first table of each type
+        # that is understood, and skip any subsequent ones.
+        count = read_int(bootstrap, 1)
+        for _ in range(count):
+            if "seg_runs" not in result:
+                (qualities, runs) = read_asrt(bootstrap)
+                if not qualities or result.get("highest_quality") in qualities:
+                    result["seg_runs"] = runs
+            else:
+                skip_box(bootstrap)
         if "seg_runs" not in result:
-            (qualities, runs) = read_asrt(bootstrap)
-            if not qualities or result.get("highest_quality") in qualities:
-                result["seg_runs"] = runs
-        else:
-            skip_box(bootstrap)
-    if "seg_runs" not in result:
-        fmt = "Segment run table not found (quality = {!r})"
-        raise LookupError(fmt.format(result.get("highest_quality")))
-    
-    count = read_int(bootstrap, 1)
-    for _ in range(count):
+            fmt = "Segment run table not found (quality = {!r})"
+            raise LookupError(fmt.format(result.get("highest_quality")))
+        
+        count = read_int(bootstrap, 1)
+        for _ in range(count):
+            if "frag_runs" not in result:
+                (qualities, runs, timescale) = read_afrt(bootstrap)
+                if not qualities or result.get("highest_quality") in qualities:
+                    result["frag_runs"] = runs
+                    result["frag_timescale"] = timescale
+            else:
+                skip_box(bootstrap)
         if "frag_runs" not in result:
-            (qualities, runs, timescale) = read_afrt(bootstrap)
-            if not qualities or result.get("highest_quality") in qualities:
-                result["frag_runs"] = runs
-                result["frag_timescale"] = timescale
-        else:
-            skip_box(bootstrap)
-    if "frag_runs" not in result:
-        fmt = "Fragment run table not found (quality = {!r})"
-        raise LookupError(fmt.format(result.get("highest_quality")))
+            fmt = "Fragment run table not found (quality = {!r})"
+            raise LookupError(fmt.format(result.get("highest_quality")))
     
     return result
 
