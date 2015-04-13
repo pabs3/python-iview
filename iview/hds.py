@@ -54,7 +54,7 @@ def fetch(*pos, dest_file=stdout.buffer, frontend=None, abort=None,
             duration = None
         
         # TODO: determine preferred bitrate, max bitrate, etc
-        media = manifest["media"][0]  # Just pick the first one!
+        media = manifest["media"][-1]  # Assume last one is most desirable
         href = media.get("href")
         if href is not None:
             href = urljoin(url, href)
