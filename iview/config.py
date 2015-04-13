@@ -12,6 +12,11 @@ except AttributeError:
 
 user_agent = 'Python-iView {}{}'.format(version, os_string)
 
+# API new in 2013-2014
+base_2014   = 'http://iview.abc.net.au/'
+api_2014 = 'api/'
+auth_2014 = 'auth'
+
 base_url   = 'http://www.abc.net.au/iview/'
 config_url   = 'xml/config.xml?r={}'.format(api_version)
 
