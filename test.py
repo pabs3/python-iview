@@ -299,6 +299,11 @@ class TestHttpSocket(TestMockHttp):
         sock2 = self.connection._connection.sock
         self.assertIsNot(sock1, sock2, "Expected new socket connection")
         self.assertTrue(sock2.reader, "Disconnected after second request")
+    
+    def test_response(self):
+        with self.session.open("http://localhost/#fragment") as response:
+            pass
+        self.assertEqual("http://localhost/", response.geturl())
 
 class TestHttpEstablishError(TestMockHttp):
     """Connection establishment errors should not trigger a retry"""
