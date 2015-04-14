@@ -1,6 +1,5 @@
 from . import config
 from xml.etree.cElementTree import XML
-import json
 from datetime import datetime
 import re
 from .utils import xml_text_elements
@@ -75,39 +74,11 @@ def parse_auth(soup, iview_config):
     })
     return auth
 
-def parse_series_api(soup):
-    """This function parses the index, which is an overall listing
-    of all programs available in iView. The index is divided into
-    'series' and 'items'. Series are things like 'beached az', while
-    items are things like 'beached az Episode 8'.
-    """
+def parse_index_section(section):
+    """This function parses a section of an "index" item."""
     
-    if not soup:  # Typically seen when a series no longer exists
-        msg = "Empty API response; perhaps the item does not exist"
-        raise ValueError(msg)
-    index_json = json.loads(soup.decode("UTF-8"))
-    
-    # alphabetically sort by title
-    # casefold() is new in Python 3.3
-    casefold = getattr(str, "casefold", str.lower)
-    index_json.sort(key=lambda series: casefold(series['b']))
-
-    index_dict = []
-
-    for series in index_json:
-        # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        result = api_attributes(series, (
-            ('id', 'a'),
-            ('title', 'b'),
-            ('description', 'c'),
-            ('thumb', 'd'),
-            ('keywords', 'e'),
-            ('category', 't'),
-        ))
-        result['items'] = parse_series_items(series['f'])
-        index_dict.append(result)
-
-    return index_dict
+    for entry in section["episodes"]:
+        yield parse_episode(entry)
 
 def parse_categories(soup):
     xml = XML(soup)
@@ -147,52 +118,33 @@ def category_ids(categories):
         ids.update(category_ids(cat['children']))
     return ids
 
-def parse_series_items(series_json):
-    items = []
-
-    for item in series_json:
-        # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        for optional_key in ('d', 'r', 's', 'l'):
-            item.setdefault(optional_key, '')
-        
-        result = api_attributes(item, (
-            ('id', 'a'),
-            ('title', 'b'),
-            ('description', 'd'),
-            ('category', 'e'),
-            ('date', 'f'),  # Date added to Iview
-            ('expires', 'g'),
-            ('broadcast', 'h'),
-            ('size', 'i'),
-            ('duration', 'j'),
-            ('hyperlink', 'k'),
-            ('home', 'l'), # program website
-            ('url', 'n'),
-            ('rating', 'm'),
-            ('livestream', 'r'),
-            ('thumb', 's'),
-            ('series', 'u'),
-            ('episode', 'v'),
-        ))
-        
-        parse_field(result, 'duration', int)
-        parse_field(result, 'size', lambda size: float(size) * 1e6)
-        
-        for field in ('date', 'expires', 'broadcast'):
-            parse_field(result, field, parse_date)
-        
-        if 'url' not in result:
-            result['url'] = result['livestream']
-        
-        title = result.get('title')
-        if title is not None:
-            # Seen newline character in a title. Perhaps it is meant to be
-            # treated like HTML and collapsed into a single space.
-            result['title'] = " ".join(title.translate(BadCharMap()).split())
-        
-        items.append(result)
-
-    return items
+def parse_episode(json):
+    series = json['seriesTitle']
+    episode = api_attributes(json, (
+        ('id', 'href'),  # Identifier string
+        ('title', 'title'),
+        ('description', 'description'),
+        ('date', 'pubDate'),  # Time published on Iview
+        ('expires', 'expireDate'),
+        ('broadcast', 'transmitDate'),  # Broadcast time
+        ('duration', 'duration'),  # Program length in seconds
+        ('home', 'share'),  # URL associated with programme
+        ('url', 'href'),
+        ('rating', 'rating'),
+        ('livestream', 'livestream'),  # Default for "url", and flag
+        ('thumb', 'thumbnail'),
+    ))
+    parse_field(episode, 'duration', int)
+    for field in ('date', 'expires', 'broadcast'):
+        parse_field(episode, field, parse_date)
+    
+    title = episode.get('title')
+    if title is not None:
+        # Seen newline character in a title. Perhaps it is meant to be
+        # treated like HTML and collapsed into a single space.
+        episode['title'] = " ".join(title.translate(BadCharMap()).split())
+    
+    return (episode, series)
 
 def parse_date(date):
     if date in {'0000-00-00 00:00:00', '0000-00-00'}:
@@ -221,18 +173,8 @@ def api_attributes(input, attributes):
     result = dict()
     for (key, code) in attributes:
         value = input.get(code)
-        # Some queries return a limited set of fields, for example
-        # the thumbnail is missing from "seriesIndex"
         if value is not None:
             result[key] = value
-    
-    # HACK: replace &amp; with & because HTML entities don't make
-    # the slightest bit of sense inside a JSON structure.
-    for key in ('title', 'description'):
-        value = result.get(key)
-        if value is not None:
-            result[key] = value.replace('&amp;', '&')
-    
     return result
 
 class BadCharMap(Mapping):

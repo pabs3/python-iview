@@ -8,6 +8,7 @@ import gzip
 from urllib.parse import urljoin, urlsplit
 from urllib.parse import urlencode
 from .utils import http_get
+import json
 
 
 iview_config = None
@@ -109,41 +110,41 @@ def get_index():
     that are available to us. Returns a list of "dict" objects,
     one for each series.
     """
-    return series_api('seriesIndex')
+    json = _api_get('index')
+    result = list()
+    for section in json['index']:  # A, B, C, . . . sections
+        for [episode, series] in parser.parse_index_section(section):
+            episode['title'] = series
+            result.append(episode)
+    return result
 
-def get_series_items(series_id, get_meta=False):
-    """This function fetches the series detail page for the selected series,
-    which contain the items (i.e. the actual episodes). By
-    default, returns a list of "dict" objects, one for each
-    episode. If "get_meta" is set, returns a tuple with the first
-    element being the list of episodes, and the second element a
-    "dict" object of series infomation.
+def get_series_items(href):
+    """This function fetches the list of episodes in the same a series
+    (season) as the given programme. It returns a tuple with the first
+    element being the list of episodes, and the second element holding the
+    series information. Each episode list item and the series element are
+    "dict" objects.
     """
 
-    series = series_api('series', series_id)
-
-    for meta in series:
-        if meta['id'] == series_id:
-            break
+    json = _api_get(href)  # TODO: persistent connection
+    [episode, series] = parser.parse_episode(json)
+    episodes = [episode]
+    related = _api_get(json['related'])['index']
+    if len(related) < 2:  # Probably just "More Like This"
+        others = ()
     else:
-        # Bad series number returns empty json string, ignore it.
-        print('no results for series id {}, skipping'.format(series_id), file=sys.stderr)
-        return []
-    
-    items = meta['items']
-    if get_meta:
-        return (items, meta)
-    else:
-        return items
+        others = related[0]  # First section is probably "N Other Episodes"
+    for [episode, _] in parser.parse_index_section(others):
+        episodes.append(episode)
+    return (episodes, series)
 
 def get_keyword(keyword):
     return series_api('keyword', keyword)
 
-def series_api(key, value=""):
-    query = urlencode(((key, value),))
-    url = urljoin(iview_config['api_url'], '?' + query)
-    index_data = maybe_fetch(url, ("application/json",))
-    return parser.parse_series_api(index_data)
+def _api_get(url):
+    url = urljoin(urljoin(config.base_2014, config.api_2014), url)
+    soup = maybe_fetch(url, ("application/json",))
+    return json.loads(soup.decode("UTF-8"))
 
 def get_highlights():
     # Reported as Content-Type: text/html
