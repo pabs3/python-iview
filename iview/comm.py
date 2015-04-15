@@ -138,6 +138,10 @@ def get_series_items(href):
         episodes.append(episode)
     return (episodes, series)
 
+def get_episode(href):
+    json = _api_get(href)
+    return json["playlist"][-1]
+
 def get_keyword(keyword):
     return series_api('keyword', keyword)
 

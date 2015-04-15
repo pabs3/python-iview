@@ -98,7 +98,8 @@ def print_auth():
 
 def download(url, output=None):
     config()
-    iview.fetch.fetch_program(url, execvp=True, dest_file=output)
+    episode = iview.comm.get_episode(url)
+    iview.fetch.fetch_program(episode, execvp=True, dest_file=output)
 
 def batch(batch_file):
     config()

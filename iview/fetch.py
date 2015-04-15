@@ -12,7 +12,7 @@ from stat import S_IRUSR, S_IWUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 
 def get_filename(url):
     """Generates a default file name from the media URL"""
-    return url.rsplit('/', 1)[-1].rsplit('.', 1)[0] + '.flv'
+    return url.rsplit('/', 2)[-2] + '.flv'
 
 def descriptive_filename(series, title, urlpart):
     """Generates a more descriptive file name from the programme title"""
@@ -165,39 +165,25 @@ class RtmpWorker(threading.Thread):
             else:
                 self.frontend.done(stopped=True)
 
-def fetch_program(url=None, *, item=dict(),
+def fetch_program(episode,
 execvp=False, dest_file=None, quiet=False, frontend=None):
     if dest_file is None:
-        dest_file = get_filename(item.get("url", url))
+        dest_file = get_filename(episode["hds-metered"])
     
-    fetcher = get_fetcher(url, item=item)
+    fetcher = get_fetcher(episode)
     if frontend:
-        frontend.resumable = is_resumable(item.get("url", url))
+        frontend.resumable = is_resumable(episode)
     return fetcher.fetch(execvp=execvp, dest_file=dest_file,
         quiet=quiet, frontend=frontend)
 
-def get_fetcher(url=None, *, item=dict()):
-    url = item.get("url", url)
-    if urlsplit(url).scheme in RTMP_PROTOCOLS:
-        return RtmpFetcher(url, live=True)
-    
+def get_fetcher(episode):
     auth = comm.get_auth()
-    protocol = urlsplit(auth['server']).scheme
-    if protocol in RTMP_PROTOCOLS:
-        (url, ext) = url.rsplit('.', 1)  # strip the extension (.flv or .mp4)
-        url = auth['playpath_prefix'] + url
-
-        if ext == 'mp4':
-            url = 'mp4:' + url
-
-        rtmp_url = auth['rtmp_url']
-        token = auth.get('token')
-        if token:
-            # Cannot use urljoin() because
-            # the RTMP scheme would have to be added to its whitelist
-            rtmp_url += '?auth=' + token
-        
-        return RtmpFetcher(rtmp_url, playpath=url)
+    if auth["free"]:
+        url = episode["hds-unmetered"]
+    else:
+        url = episode["hds-metered"]
+    if urlsplit(url).scheme in RTMP_PROTOCOLS:
+        return RtmpFetcher(url, live=episode["type"] == "livestream")
     else:
         return HdsFetcher(url, auth)
 
@@ -228,8 +214,7 @@ RTMP_PROTOCOLS = {'rtmp', 'rtmpt', 'rtmpe', 'rtmpte'}
 
 class HdsFetcher:
     def __init__(self, file, auth):
-        base = urljoin(auth['server'], auth['path'])
-        self.url = urljoin(base, file + '/manifest.f4m')
+        self.url = file
         self.tokenhd = auth.get('tokenhd')
     
     def fetch(self, *, frontend, execvp, quiet, **kw):
