@@ -131,7 +131,7 @@ def get_series_items(href):
     episodes = [episode]
     related = _api_get(json['related'])['index']
     if len(related) < 2:  # Probably just "More Like This"
-        others = ()
+        others = {"episodes": ()}
     else:
         others = related[0]  # First section is probably "N Other Episodes"
     for [episode, _] in parser.parse_index_section(others):
