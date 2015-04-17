@@ -128,7 +128,7 @@ def get_series_items(series_id, get_meta=False):
     else:
         # Bad series number returns empty json string, ignore it.
         print('no results for series id {}, skipping'.format(series_id), file=sys.stderr)
-        return []
+        meta = {'items': []}
     
     items = meta['items']
     if get_meta:
