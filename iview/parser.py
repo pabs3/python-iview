@@ -7,6 +7,8 @@ from .utils import xml_text_elements
 import sys
 from collections import Mapping
 import unicodedata
+from warnings import warn
+from urllib.parse import urlsplit
 
 def parse_config(soup):
     """There are lots of goodies in the config we get back from the ABC.
@@ -88,8 +90,6 @@ def parse_series_api(soup):
     index_json = json.loads(soup.decode("UTF-8"))
     
     # alphabetically sort by title
-    # casefold() is new in Python 3.3
-    casefold = getattr(str, "casefold", str.lower)
     index_json.sort(key=lambda series: casefold(series['b']))
 
     index_dict = []
@@ -108,6 +108,78 @@ def parse_series_api(soup):
         index_dict.append(result)
 
     return index_dict
+
+def parse_json_feed(soup):
+    if not soup:
+        raise ValueError('Empty feed API response')
+    index_json = json.loads(soup.decode('utf-8'))
+    
+    series = dict()  # Programme series (seasons) by series id.
+    for item in index_json:
+        this = api_attributes(item, (
+            ('id', 'seriesId'),
+            ('title', 'seriesTitle'),
+            ('series', 'seriesNumber'),
+        ))
+        existing = series.get(this['id'])
+        if existing is None:
+            this['items'] = list()
+            series[this['id']] = this
+            existing = this
+        else:
+            if this['title'] != existing['title']:
+                warn('Series {id} title also {title!r}'.format_map(this))
+            existing_number = existing.get('series')
+            if existing_number not in {None, this.get('series')}:
+                warn('Series {id} number changes')
+                del existing['series']
+        
+        for optional_key in ('description', 'thumb', 'linkURL'):
+            item.setdefault(optional_key, '')
+        episode = api_attributes(item, (
+            ('id', 'episodeId'),
+            ('title', 'title'),
+            ('description', 'description'),
+            ('category', 'category'),
+            ('date', 'pubDate'),
+            ('expires', 'expireDate'),
+            ('size', 'fileSize'),
+            ('duration', 'duration'),
+            ('home', 'linkURL'),
+            ('url', 'videoAsset'),
+            ('rating', 'rating'),
+            ('warning', 'warning'),
+            ('thumb', 'thumbnail'),
+            ('series', 'seriesNumber'),
+            ('episode', 'episodeNumber'),
+        ))
+        
+        split = urlsplit(episode['url'])
+        prefix = '/playback/_definst_/'
+        if split.path.startswith(prefix):
+            episode['url'] = split.path[len(prefix):]
+        else:
+            warn('Unexpected videoAsset ' + repr(episode['url']))
+        
+        episode['livestream'] = ''
+        parse_field(episode, 'duration', int)
+        parse_field(episode, 'size', lambda size: float(size) * 1e6)
+        for field in ('date', 'expires'):
+            parse_field(episode, field, parse_date)
+        
+        title = episode.get('title')
+        if title is not None:
+            # Seen newline character in a title. Perhaps it is meant to be
+            # treated like HTML and collapsed into a single space.
+            title = title.translate(BadCharMap())
+            episode['title'] = ' '.join(title.split())
+        
+        existing['items'].append(episode)
+    
+    def get_title(series):
+        """Alphabetically sort by series title"""
+        return casefold(series['title'])
+    return sorted(series.values(), key=get_title)
 
 def parse_categories(soup):
     xml = XML(soup)
@@ -152,9 +224,6 @@ def parse_series_items(series_json):
 
     for item in series_json:
         # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        for optional_key in ('d', 'r', 's', 'l'):
-            item.setdefault(optional_key, '')
-        
         result = api_attributes(item, (
             ('id', 'a'),
             ('title', 'b'),
@@ -175,20 +244,8 @@ def parse_series_items(series_json):
             ('episode', 'v'),
         ))
         
-        parse_field(result, 'duration', int)
-        parse_field(result, 'size', lambda size: float(size) * 1e6)
-        
         for field in ('date', 'expires', 'broadcast'):
             parse_field(result, field, parse_date)
-        
-        if 'url' not in result:
-            result['url'] = result['livestream']
-        
-        title = result.get('title')
-        if title is not None:
-            # Seen newline character in a title. Perhaps it is meant to be
-            # treated like HTML and collapsed into a single space.
-            result['title'] = " ".join(title.translate(BadCharMap()).split())
         
         items.append(result)
 
@@ -307,3 +364,6 @@ def parse_captions(soup):
         i += 1
 
     return output
+
+# casefold() is new in Python 3.3
+casefold = getattr(str, "casefold", str.lower)
