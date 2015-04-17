@@ -169,11 +169,13 @@ def parse_json_feed(soup):
             parse_field(episode, field, parse_date)
         
         title = episode.get('title')
-        if title is not None:
+        if title:
             # Seen newline character in a title. Perhaps it is meant to be
             # treated like HTML and collapsed into a single space.
             title = title.translate(BadCharMap())
             episode['title'] = ' '.join(title.split())
+        else:
+            episode['title'] = this_series['title']
         
         this_series['items'].append(episode)
     
