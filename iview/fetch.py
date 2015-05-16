@@ -25,7 +25,7 @@ def descriptive_filename(series, title, urlpart):
         filename = "{}.{}".format(series, ext)
     else:
         # If we can get a SxEy show descriptor, lets use it.
-        match = re.match(r".*_(\d*)_(\d*)", urlpart)
+        match = re.match(r".*?_(\d*)_(\d*)", urlpart)
 
         if match:
             title = 'S{}E{} - {}'.format(match.group(1), match.group(2), title)

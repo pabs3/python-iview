@@ -116,23 +116,24 @@ def parse_json_feed(soup):
     
     series = dict()  # Programme series (seasons) by series id.
     for item in index_json:
-        this = api_attributes(item, (
+        this_series = api_attributes(item, (
             ('id', 'seriesId'),
             ('title', 'seriesTitle'),
             ('series', 'seriesNumber'),
         ))
-        existing = series.get(this['id'])
+        existing = series.get(this_series['id'])
         if existing is None:
-            this['items'] = list()
-            series[this['id']] = this
-            existing = this
+            this_series['items'] = list()
+            series[this_series['id']] = this_series
         else:
-            if this['title'] != existing['title']:
-                warn('Series {id} title also {title!r}'.format_map(this))
+            if this_series['title'] != existing['title']:
+                msg = 'Series {id} title also {title!r}'
+                warn(msg.format_map(this_series))
             existing_number = existing.get('series')
-            if existing_number not in {None, this.get('series')}:
-                warn('Series {id} number changes')
+            if existing_number not in {None, this_series.get('series')}:
+                warn('Series {} number changes'.format(this_series['id']))
                 del existing['series']
+            this_series = existing
         
         for optional_key in ('description', 'thumb', 'linkURL'):
             item.setdefault(optional_key, '')
@@ -168,13 +169,15 @@ def parse_json_feed(soup):
             parse_field(episode, field, parse_date)
         
         title = episode.get('title')
-        if title is not None:
+        if title:
             # Seen newline character in a title. Perhaps it is meant to be
             # treated like HTML and collapsed into a single space.
             title = title.translate(BadCharMap())
             episode['title'] = ' '.join(title.split())
+        else:
+            episode['title'] = this_series['title']
         
-        existing['items'].append(episode)
+        this_series['items'].append(episode)
     
     def get_title(series):
         """Alphabetically sort by series title"""
