@@ -98,6 +98,9 @@ There are a few variables that can be edited in the “config.py” file.
 Changes
 ===
 
+* 17 Apr 2015: Switch to a different web API to get new video URLs working
+* 30 Mar 2015: Avoid text encoding crash in programme list
+* 13 Dec 2014: Sensible handling of odd programme titles
 * 7 Dec 2014: Sickbeard-compatible episode number in filenames; improve HTTP
    connection handling; ability to resume HDS downloads; code and indentation
    cleanups
