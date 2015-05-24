@@ -7,6 +7,8 @@ from .utils import xml_text_elements
 import sys
 from collections import Mapping
 import unicodedata
+from warnings import warn
+from urllib.parse import urlsplit
 
 def parse_config(soup):
     """There are lots of goodies in the config we get back from the ABC.
@@ -16,7 +18,7 @@ def parse_config(soup):
 
     xml = XML(soup)
     params = dict()
-    for param in xml.getiterator('param'):
+    for param in xml.iter('param'):
         params.setdefault(param.get('name'), param.get('value'))
 
     # should look like "rtmp://cp53909.edgefcs.net/ondemand"
@@ -88,8 +90,6 @@ def parse_series_api(soup):
     index_json = json.loads(soup.decode("UTF-8"))
     
     # alphabetically sort by title
-    # casefold() is new in Python 3.3
-    casefold = getattr(str, "casefold", str.lower)
     index_json.sort(key=lambda series: casefold(series['b']))
 
     index_dict = []
@@ -109,6 +109,81 @@ def parse_series_api(soup):
 
     return index_dict
 
+def parse_json_feed(soup):
+    if not soup:
+        raise ValueError('Empty feed API response')
+    index_json = json.loads(soup.decode('utf-8'))
+    
+    series = dict()  # Programme series (seasons) by series id.
+    for item in index_json:
+        this_series = api_attributes(item, (
+            ('id', 'seriesId'),
+            ('title', 'seriesTitle'),
+            ('series', 'seriesNumber'),
+        ))
+        existing = series.get(this_series['id'])
+        if existing is None:
+            this_series['items'] = list()
+            series[this_series['id']] = this_series
+        else:
+            if this_series['title'] != existing['title']:
+                msg = 'Series {id} title also {title!r}'
+                warn(msg.format_map(this_series))
+            existing_number = existing.get('series')
+            if existing_number not in {None, this_series.get('series')}:
+                warn('Series {} number changes'.format(this_series['id']))
+                del existing['series']
+            this_series = existing
+        
+        for optional_key in ('description', 'thumb', 'linkURL'):
+            item.setdefault(optional_key, '')
+        episode = api_attributes(item, (
+            ('id', 'episodeId'),
+            ('title', 'title'),
+            ('description', 'description'),
+            ('category', 'category'),
+            ('date', 'pubDate'),
+            ('expires', 'expireDate'),
+            ('size', 'fileSize'),
+            ('duration', 'duration'),
+            ('home', 'linkURL'),
+            ('url', 'videoAsset'),
+            ('rating', 'rating'),
+            ('warning', 'warning'),
+            ('thumb', 'thumbnail'),
+            ('series', 'seriesNumber'),
+            ('episode', 'episodeNumber'),
+        ))
+        
+        split = urlsplit(episode['url'])
+        prefix = '/playback/_definst_/'
+        if split.path.startswith(prefix):
+            episode['url'] = split.path[len(prefix):]
+        else:
+            warn('Unexpected videoAsset ' + repr(episode['url']))
+        
+        episode['livestream'] = ''
+        parse_field(episode, 'duration', int)
+        parse_field(episode, 'size', lambda size: float(size) * 1e6)
+        for field in ('date', 'expires'):
+            parse_field(episode, field, parse_date)
+        
+        title = episode.get('title')
+        if title:
+            # Seen newline character in a title. Perhaps it is meant to be
+            # treated like HTML and collapsed into a single space.
+            title = title.translate(BadCharMap())
+            episode['title'] = ' '.join(title.split())
+        else:
+            episode['title'] = this_series['title']
+        
+        this_series['items'].append(episode)
+    
+    def get_title(series):
+        """Alphabetically sort by series title"""
+        return casefold(series['title'])
+    return sorted(series.values(), key=get_title)
+
 def parse_categories(soup):
     xml = XML(soup)
 
@@ -126,7 +201,7 @@ def category_node(xml):
 
     # Get all the top level categories
     
-    for cat in xml.findall('category'):
+    for cat in xml.iterfind('category'):
         item = dict(cat.items())
         
         genre = item.get("genre")
@@ -152,9 +227,6 @@ def parse_series_items(series_json):
 
     for item in series_json:
         # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        for optional_key in ('d', 'r', 's', 'l'):
-            item.setdefault(optional_key, '')
-        
         result = api_attributes(item, (
             ('id', 'a'),
             ('title', 'b'),
@@ -175,20 +247,8 @@ def parse_series_items(series_json):
             ('episode', 'v'),
         ))
         
-        parse_field(result, 'duration', int)
-        parse_field(result, 'size', lambda size: float(size) * 1e6)
-        
         for field in ('date', 'expires', 'broadcast'):
             parse_field(result, field, parse_date)
-        
-        if 'url' not in result:
-            result['url'] = result['livestream']
-        
-        title = result.get('title')
-        if title is not None:
-            # Seen newline character in a title. Perhaps it is meant to be
-            # treated like HTML and collapsed into a single space.
-            result['title'] = " ".join(title.translate(BadCharMap()).split())
         
         items.append(result)
 
@@ -238,11 +298,10 @@ def api_attributes(input, attributes):
 class BadCharMap(Mapping):
     """Maps unwanted control characters to spaces"""
     
-    # Only partially implementing the mapping interface
     def __iter__(self):
-        raise NotImplementedError()
+        return iter(range(len(self)))
     def __len__(self):
-        raise NotImplementedError()
+        return sys.maxunicode + 1
     
     def __getitem__(self, cp):
         category = unicodedata.category(chr(cp))
@@ -254,7 +313,7 @@ class BadCharMap(Mapping):
         elif (category.startswith("C") and category != "Cf" or
                 category in {"Zl", "Zp"}):
             return " "
-        raise LookupError("Good character")
+        raise KeyError("Good character")
 
 def parse_highlights(xml):
 
@@ -262,7 +321,7 @@ def parse_highlights(xml):
 
     highlightList = []
 
-    for series in soup.findall('series'):
+    for series in soup.iterfind('series'):
         tempSeries = dict(series.items())
         tempSeries.update(xml_text_elements(series))
         highlightList.append(tempSeries)
@@ -297,7 +356,7 @@ def parse_captions(soup):
     output = ''
 
     i = 1
-    for title in xml.getiterator('title'):
+    for title in xml.iter('title'):
         start = title.get('start')
         (start, startfract) = start.rsplit(':', 1)
         end = title.get('end')
@@ -308,3 +367,6 @@ def parse_captions(soup):
         i += 1
 
     return output
+
+# casefold() is new in Python 3.3
+casefold = getattr(str, "casefold", str.lower)

@@ -4,7 +4,7 @@
 Why the fork
 ------------
 
-This fork will only work on front-ends. Windows users don't have a GUI so the an average windows user can't use this. The CLI still works in windows so all they need is a better front-end. Also there is lots of unused meta-data (such as expiry date, rating, category, thumbnails etc.) accessible from the library but not the front-end. I would also like to make a cron runnable version that will download any new episodes of selected shows.
+This fork will only work on front-ends. Windows users don't have a GUI so the average windows user can't use this. The CLI still works in windows so all they need is a better front-end. Also there is lots of unused meta-data (such as expiry date, rating, category, thumbnails etc.) accessible from the library but not the front-end. I would also like to make a cron runnable version that will download any new episodes of selected shows.
 
 New versions
 ------------
