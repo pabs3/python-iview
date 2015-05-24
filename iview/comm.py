@@ -1,22 +1,24 @@
 import os
 import urllib.request
 import sys
+import socket
 from . import config
 from . import parser
 import gzip
 from urllib.parse import urljoin, urlsplit
 from urllib.parse import urlencode
 from .utils import http_get
-
+from base64 import b64encode
 
 iview_config = None
 
-def fetch_url(url, types=None):
+def fetch_url(url, types=None, headers=()):
     """Simple function that fetches a URL using urllib.
     An exception is raised if an error (e.g. 404) occurs.
     """
     url = urljoin(config.base_url, url)
-    headers = iview_config['headers']
+    all_headers = dict(iview_config['headers'])
+    all_headers.update(headers)
     
     # Not using plain urlopen() because the combination of
     # urlopen()'s "Connection: close" header and
@@ -25,14 +27,17 @@ def fetch_url(url, types=None):
     from .utils import PersistentConnectionHandler
     with PersistentConnectionHandler(timeout=10) as connection:
         session = urllib.request.build_opener(connection)
-        with http_get(session, url, types, headers=headers) as http:
-            headers = http.info()
-            if headers.get('content-encoding') == 'gzip':
-                return gzip.GzipFile(fileobj=http).read()
-            else:
-                return http.read()
+        try:
+            with http_get(session, url, types, headers=all_headers) as http:
+                headers = http.info()
+                if headers.get('content-encoding') == 'gzip':
+                    return gzip.GzipFile(fileobj=http).read()
+                else:
+                    return http.read()
+        except socket.timeout as error:
+            raise Error("Timeout accessing {!r}".format(url)) from error
 
-def maybe_fetch(url, type=None):
+def maybe_fetch(url, type=None, headers=()):
     """Only fetches a URL if it is not in the cache directory.
     In practice, this is really bad, and only useful for saving
     bandwidth when debugging. For one, it doesn't respect
@@ -40,7 +45,7 @@ def maybe_fetch(url, type=None):
     """
 
     if not config.cache:
-        return fetch_url(url, type)
+        return fetch_url(url, type, headers=headers)
 
     if not os.path.isdir(config.cache):
         os.mkdir(config.cache)
@@ -51,7 +56,7 @@ def maybe_fetch(url, type=None):
         with open(filename, 'rb') as f:
             data = f.read()
     else:
-        data = fetch_url(url, type)
+        data = fetch_url(url, type, headers=headers)
         with open(filename, 'wb') as f:
             f.write(data)
 
@@ -105,7 +110,9 @@ def get_index():
     that are available to us. Returns a list of "dict" objects,
     one for each series.
     """
-    return series_api('seriesIndex')
+    url = urljoin(iview_config['api_url'], '?seriesIndex')
+    index_data = maybe_fetch(url, ('application/json',))
+    return parser.parse_series_api(index_data)
 
 def get_series_items(series_id, get_meta=False):
     """This function fetches the series detail page for the selected series,
@@ -122,9 +129,9 @@ def get_series_items(series_id, get_meta=False):
         if meta['id'] == series_id:
             break
     else:
-        # Bad series number returns empty json string, ignore it.
+        # Bad series number used to return an empty JSON string, so ignore it.
         print('no results for series id {}, skipping'.format(series_id), file=sys.stderr)
-        return []
+        meta = {'items': []}
     
     items = meta['items']
     if get_meta:
@@ -137,9 +144,12 @@ def get_keyword(keyword):
 
 def series_api(key, value=""):
     query = urlencode(((key, value),))
-    url = urljoin(iview_config['api_url'], '?' + query)
-    index_data = maybe_fetch(url, ("application/json",))
-    return parser.parse_series_api(index_data)
+    url = 'https://tviview.abc.net.au/iview/feed/Humax/?' + query
+    type = "application/json"
+    credentials = b64encode(b"feedtest:abc123")
+    authorization = ('Authorization', b'Basic ' + credentials)
+    index_data = maybe_fetch(url, (type,), headers=(authorization,))
+    return parser.parse_json_feed(index_data)
 
 def get_highlights():
     # Reported as Content-Type: text/html
@@ -174,6 +184,9 @@ def configure_socks_proxy():
         sys.exit(3)
 
     socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, config.socks_proxy_host, config.socks_proxy_port)
+
+class Error(EnvironmentError):
+    pass
 
 if config.socks_proxy_host is not None:
     configure_socks_proxy()

@@ -10,6 +10,7 @@ import configparser
 from errno import EPIPE
 from sys import stderr
 import urllib.parse
+from iview.utils import encodeerrors
 
 def config():
     try:
@@ -36,8 +37,10 @@ def category(keyword):
     config()
     index = iview.comm.get_keyword(keyword)
 
+    if not sys.stdout:
+        return
     for series in index:
-        print(series['title'] + ':')
+        sys.stdout.write(encodeerrors(series['title'] + ':\n', sys.stdout))
         print_series_items(series['items'], indent='\t')
 
 def index():
@@ -46,8 +49,11 @@ def index():
     config()
     index = iview.comm.get_index()
 
+    if not sys.stdout:
+        return
     for series in index:
-        print('{id}\t{title}'.format_map(series))
+        title = encodeerrors(series['title'], sys.stdout)
+        sys.stdout.write('{}\t{}\n'.format(series['id'], title))
 
 def batch_index():
     """Downloads the iView index, and prints the corresponding series and IDs in a format
@@ -56,17 +62,22 @@ def batch_index():
     config()
     index = iview.comm.get_index()
 
+    if not sys.stdout:
+        return
     for series in index:
-        print('{id}: {title}'.format_map(series))
+        title = encodeerrors(series['title'], sys.stdout)
+        sys.stdout.write('{}: {}\n'.format(series['id'], title))
 
 def series(series_id):
     config()
     print_series_items(iview.comm.get_series_items(series_id))
 
 def print_series_items(items, indent=''):
+    if not sys.stdout:
+        return
     for item in items:
-        print('{}{}\t({})'.format(indent,
-            item['title'], item['url']))
+        title = encodeerrors(item['title'], sys.stdout)
+        sys.stdout.write('{}{}\t({})\n'.format(indent, title, item['url']))
 
 def print_auth():
     config()
@@ -98,7 +109,6 @@ def batch(batch_file):
 
     batch_destination = '.'
     series_ids = []
-    series_comment = {}
     last_only = False
 
     # separate options from the series ids
@@ -112,7 +122,6 @@ def batch(batch_file):
             # Note: currently the value after the series_id in the batch file
             # is only used as a comment for the user.
             series_ids.append(key)
-            series_comment[key] = value
 
     # move to where the files should be downloaded
     os.chdir(batch_destination)
@@ -124,38 +133,36 @@ def batch(batch_file):
         last_episode = None
 
         # loop through the episodes
-        episodes = iview.comm.get_series_items(series_id)
+        result = iview.comm.get_series_items(series_id, get_meta=True)
+        [episodes, metadata] = result
         for episode in episodes:
             if last_only:
                 # This last_only feature is experimental, I am not sure which field to 
                 # use to determine the most recent episode.
-                if last_episode == None or episode['date'] > last_episode['date']:
+                if last_episode is None or episode['date'] > last_episode['date']:
                     last_episode = episode
             else:
-                batch_fetch_program(episode, series=series_comment[series_id])
+                batch_fetch_program(episode, series=metadata['title'])
 
         # Last only means we only get one episode for the series
         if last_only:
-            batch_fetch_program(last_episode, series=series_comment[series_id])
+            batch_fetch_program(last_episode, series=metadata['title'])
 
 def batch_fetch_program(episode, series):
     # Only print notification messages for episodes that have never been downloaded before.
+    url = episode['url']
 
     # urls sometimes include a path like 'news/' or 'kids/'
-    (pathpart, filepart) = os.path.split(episode['url'])
+    (pathpart, filepart) = os.path.split(url)
 
     # urls also have '.mp4' extension but downloaded files end in '.flv'
     (base, ext) = os.path.splitext(filepart)
 
-    if series:
-        title = episode['title']
-        filename = iview.fetch.descriptive_filename(series, title, base)
-        if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
-            print("{} already exists as {}.flv so should be moved".format(filename, base))
-            return
-
-    else:
-        filename = base + '.flv'
+    title = episode['title']
+    filename = iview.fetch.descriptive_filename(series, title, url)
+    if os.path.isfile(base + '.flv') and not os.path.isfile(filename):
+        print("{} already exists as {}.flv so should be moved".format(filename, base))
+        return
 
     if not os.path.isfile(filename):
         msg = "getting {} - {} -> {}".format(episode['title'], episode['url'], filename)
@@ -267,25 +274,29 @@ def main():
     if args.ip is not None:
         iview.config.ip = args.ip
 
-    if args.programme:
-        programme()
-    if args.category is not None:
-        category(args.category)
-    if args.index:
-        index()
-    if args.bindex:
-        batch_index()
-    if args.series is not None:
-        series(args.series)
-    if args.print_auth:
-        print_auth()
-    
-    if args.download is not None:
-        download(args.download, args.output)
-    elif args.subtitles is not None:
-        subtitles(args.subtitles, args.output)
-    elif args.batch is not None:
-        batch(args.batch)
+    try:
+        if args.programme:
+            programme()
+        if args.category is not None:
+            category(args.category)
+        if args.index:
+            index()
+        if args.bindex:
+            batch_index()
+        if args.series is not None:
+            series(args.series)
+        if args.print_auth:
+            print_auth()
+        
+        if args.download is not None:
+            download(args.download, args.output)
+        elif args.subtitles is not None:
+            subtitles(args.subtitles, args.output)
+        elif args.batch is not None:
+            batch(args.batch)
+    except iview.comm.Error as error:
+        print(error, file=stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

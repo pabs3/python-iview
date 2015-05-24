@@ -25,7 +25,7 @@ def descriptive_filename(series, title, urlpart):
         filename = "{}.{}".format(series, ext)
     else:
         # If we can get a SxEy show descriptor, lets use it.
-        match = re.match(r".*_(\d*)_(\d*)", urlpart)
+        match = re.match(r".*?_(\d*)_(\d*)", urlpart)
 
         if match:
             title = 'S{}E{} - {}'.format(match.group(1), match.group(2), title)
@@ -228,8 +228,8 @@ RTMP_PROTOCOLS = {'rtmp', 'rtmpt', 'rtmpe', 'rtmpte'}
 
 class HdsFetcher:
     def __init__(self, file, auth):
-        self.url = urljoin(auth['server'], auth['path'])
-        self.file = file
+        base = urljoin(auth['server'], auth['path'])
+        self.url = urljoin(base, file + '/manifest.f4m')
         self.tokenhd = auth.get('tokenhd')
     
     def fetch(self, *, frontend, execvp, quiet, **kw):
@@ -237,10 +237,10 @@ class HdsFetcher:
             call = hds_open_file
         else:
             call = HdsThread
-        return call(self.url, self.file, self.tokenhd,
+        return call(self.url, self.tokenhd,
             frontend=frontend,
             player=config.akamaihd_player,
-            key=config.akamaihd_key, **kw)
+        **kw)
 
 class HdsThread(threading.Thread):
     def __init__(self, *pos, frontend, **kw):

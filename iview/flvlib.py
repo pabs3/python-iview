@@ -15,10 +15,11 @@ def main():
     print("header", dump(read_file_header(flv)))
     
     while True:
+        offset = flv.tell()
         tag = read_tag_header(flv)
         if tag is None:
             break
-        print(dump(tag))
+        print(offset, dump(tag))
         
         parser = tag_parsers.get(tag["type"])
         if parser:
@@ -37,7 +38,7 @@ def write_file_header(flv, audio=True, video=True):
 def read_file_header(flv):
     signature = read_strict(flv, 3)
     if signature != SIGNATURE:
-        raise ValueError(signature)
+        raise ValueError(repr(signature))
     (version, flags) = read_strict(flv, 2)
     if version != FILE_VERSION:
         raise ValueError(version)
