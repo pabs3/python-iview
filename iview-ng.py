@@ -14,11 +14,9 @@ eps = []
 
 def findShow(query):
 	global shows
-	shows = []
-	for show in index:
-		if show.get('title').find(query) > -1:
-			print('['+str(len(shows))+']', show.get('title'), len(show.get('items')), 'eps')
-			shows.append(show)
+	shows = [show for show in index if show.get('title').lower().find(query.lower()) > -1]
+	for (idx, show) in enumerate(shows):
+		print('''[{0}] {1} : {2} episodes. Type 'eps {0}' for more info.'''.format(idx, show.get('title'), len(show.get('items'))))
 
 def findEp(showNum):
 	global eps
