@@ -157,12 +157,15 @@ def get_highlights():
     return parser.parse_highlights(highlightXML)
 
 def get_captions(url):
-    """This function takes a program name (e.g. news/730report_100803) and
+    """This function takes a program name with the suffix stripped
+    (e.g. _video/news_730s_Tx_1506_650000) and
     fetches the corresponding captions file. It then passes it to
     parse_subtitle(), which converts it to SRT format.
     """
-
-    captions_url = '{}{}.xml'.format(iview_config['captions_url'], url)
+    if url.startswith('_video/'):
+        # Convert new URLs like the above example to "news_730s_tx_1506"
+        url = url.split('/', 1)[-1].rsplit('_', 1)[0].lower()
+    captions_url = urljoin('http://iview.abc.net.au/cc/', url + '.xml')
 
     TYPES = ("text/xml", "application/xml")
     xml = maybe_fetch(captions_url, TYPES)

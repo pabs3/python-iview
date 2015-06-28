@@ -98,6 +98,7 @@ There are a few variables that can be edited in the “config.py” file.
 Changes
 ===
 
+* 28 Jun 2015: Fix subtitles with new video URLs
 * 17 Apr 2015: Switch to a different web API to get new video URLs working
 * 30 Mar 2015: Avoid text encoding crash in programme list
 * 13 Dec 2014: Sensible handling of odd programme titles
