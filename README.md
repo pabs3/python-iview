@@ -98,6 +98,7 @@ There are a few variables that can be edited in the “config.py” file.
 Changes
 ===
 
+* 4 Jul 2015: Switch to Panasonic API after Humax was retired
 * 28 Jun 2015: Fix subtitles with new video URLs
 * 17 Apr 2015: Switch to a different web API to get new video URLs working
 * 30 Mar 2015: Avoid text encoding crash in programme list

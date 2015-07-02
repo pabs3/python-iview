@@ -144,7 +144,7 @@ def get_keyword(keyword):
 
 def series_api(key, value=""):
     query = urlencode(((key, value),))
-    url = 'https://tviview.abc.net.au/iview/feed/Humax/?' + query
+    url = 'https://tviview.abc.net.au/iview/feed/panasonic/?' + query
     type = "application/json"
     credentials = b64encode(b"feedtest:abc123")
     authorization = ('Authorization', b'Basic ' + credentials)
