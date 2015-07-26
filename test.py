@@ -138,13 +138,17 @@ class TestParse(TestCase):
         ):
             self.assertEqual(expected, iview.parser.parse_date(input))
     
-    def test_items(self):
+    def test_episodes(self):
         import iview.parser
-        items = iview.parser.parse_series_items([
-            {"b": "Series 1 Episode 1\n"},  # Trim newline from end
-            {"b": "Series 1 Episode 2 \n(Final)"},  # Collapse spaces
-        ])
-        self.assertTrue(all("\n" not in i["title"] for i in items))
+        items = iview.parser.parse_json_feed(br'''['''
+            br'''{"seriesId": "100","seriesTitle": "Dummy Title",'''
+                br'''"title": "Series 1 Episode 1\n",'''  # Trailing newline
+                br'''"videoAsset": "/playback/_definst_/"},'''
+            br'''{"seriesId": "100","seriesTitle": "Dummy Title",'''
+                br'''"title": "Series 1 Episode 2 \n(Final)",'''  # Space NL
+                br'''"videoAsset": "/playback/_definst_/"}]''')
+        for i in items:
+            self.assertNotIn("\n", i["title"])
 
 import iview.utils
 import urllib.request
