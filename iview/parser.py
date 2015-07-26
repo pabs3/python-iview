@@ -77,38 +77,6 @@ def parse_auth(soup, iview_config):
     })
     return auth
 
-def parse_series_api(soup):
-    """This function parses the index, which is an overall listing
-    of all programs available in iView. The index is divided into
-    'series' and 'items'. Series are things like 'beached az', while
-    items are things like 'beached az Episode 8'.
-    """
-    
-    if not soup:  # Typically seen when a series no longer exists
-        msg = "Empty API response; perhaps the item does not exist"
-        raise ValueError(msg)
-    index_json = json.loads(soup.decode("UTF-8"))
-    
-    # alphabetically sort by title
-    index_json.sort(key=lambda series: casefold(series['b']))
-
-    index_dict = []
-
-    for series in index_json:
-        # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        result = api_attributes(series, (
-            ('id', 'a'),
-            ('title', 'b'),
-            ('description', 'c'),
-            ('thumb', 'd'),
-            ('keywords', 'e'),
-            ('category', 't'),
-        ))
-        result['items'] = parse_series_items(series['f'])
-        index_dict.append(result)
-
-    return index_dict
-
 def parse_json_feed(soup):
     if not soup:
         raise ValueError('Empty feed API response')
@@ -221,38 +189,6 @@ def category_ids(categories):
         ids[cat['id']] = cat
         ids.update(category_ids(cat['children']))
     return ids
-
-def parse_series_items(series_json):
-    items = []
-
-    for item in series_json:
-        # https://iviewdownloaders.wikia.com/wiki/ABC_iView_Downloaders_Wiki#Series_JSON_format
-        result = api_attributes(item, (
-            ('id', 'a'),
-            ('title', 'b'),
-            ('description', 'd'),
-            ('category', 'e'),
-            ('date', 'f'),  # Date added to Iview
-            ('expires', 'g'),
-            ('broadcast', 'h'),
-            ('size', 'i'),
-            ('duration', 'j'),
-            ('hyperlink', 'k'),
-            ('home', 'l'), # program website
-            ('url', 'n'),
-            ('rating', 'm'),
-            ('livestream', 'r'),
-            ('thumb', 's'),
-            ('series', 'u'),
-            ('episode', 'v'),
-        ))
-        
-        for field in ('date', 'expires', 'broadcast'):
-            parse_field(result, field, parse_date)
-        
-        items.append(result)
-
-    return items
 
 def parse_date(date):
     if date in {'0000-00-00 00:00:00', '0000-00-00'}:
