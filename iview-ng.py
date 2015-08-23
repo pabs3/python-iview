@@ -7,7 +7,7 @@ promptText = 'iView $ '
 running = True
 
 iview.comm.get_config()
-index = iview.comm.get_index()
+index = iview.comm.get_keyword('index')
 
 shows = []
 eps = []
@@ -34,7 +34,7 @@ def getEp(epNum):
 
 def makeIndex():
 	global index
-	index = iview.comm.get_index()
+	index = iview.comm.get_keyword('index')
 
 def main():
 	while running:
