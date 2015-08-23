@@ -2,14 +2,14 @@ Source: python-iview
 Section: net
 Priority: extra
 Maintainer: Jeremy Visser <jeremy@visser.name>
-Build-Depends: debhelper (>= 7), cdbs, python, python-support
+Build-Depends: debhelper (>= 7), cdbs, python3, python3-setuptools
 Standards-Version: 3.8.1
 Homepage: http://jeremy.visser.name/python-iview/
 
-Package: python-iview
+Package: python3-iview
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-all | python (>= 3.2) | python3.3 | python3.2, python-support
-Suggests: python-socksipy, rtmpdump
+Depends: ${python3:Depends}, ${misc:Depends}
+Suggests: python3-socksipy, rtmpdump
 Recommends: python3-gi
 Description: GTK-based frontend to ABC iView
  The ABC iView service is a video-on-demand streaming service

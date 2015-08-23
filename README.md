@@ -1,6 +1,8 @@
 ﻿Python iView
 ============
 
+[![Join the chat at https://gitter.im/sramsay64/python-iview](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sramsay64/python-iview?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Why the fork
 ------------
 
