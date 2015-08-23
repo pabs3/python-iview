@@ -106,7 +106,7 @@ def addDownload(ep, dest_file=None, frontend=None):
 
 def indexShows():
 	global listShows, index
-	index = iview.comm.get_index()
+	index = iview.comm.get_keyword('index')
 	for i, x in enumerate(index):
 		listShows.insert(i, x.get('title'))
 
