@@ -158,8 +158,11 @@ class Downloader(Gtk.Window):
         
         frontend = Frontend(self, self.target['size'])
         self.pause_btn.hide()
+        print(self.target)
+        print(self.dest_file)
+        print(frontend)
         self.job = iview.fetch.fetch_program(
-            item=self.target,
+            episode=self.target,
             dest_file=self.dest_file,
             frontend=frontend,
         )
@@ -284,7 +287,9 @@ def load_series_items(widget, iter, path):
 
     series_id = model.get_value(iter, 1)['id']
     items = iview.comm.get_series_items(series_id)
-
+    print(items)
+    if type(items) is tuple:
+        items = items[0]
     for item in items:
         target = dict(
             url=item['url'],
