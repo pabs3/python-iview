@@ -25,7 +25,7 @@ def fetch_url(url, types=None, headers=()):
     # a "gzip" encoded response
     # sometimes seems to cause the server to truncate the HTTP response
     from .utils import PersistentConnectionHandler
-    with PersistentConnectionHandler(timeout=10) as connection:
+    with PersistentConnectionHandler(timeout=30) as connection:
         session = urllib.request.build_opener(connection)
         try:
             with http_get(session, url, types, headers=all_headers) as http:
@@ -110,9 +110,7 @@ def get_index():
     that are available to us. Returns a list of "dict" objects,
     one for each series.
     """
-    url = urljoin(iview_config['api_url'], '?seriesIndex')
-    index_data = maybe_fetch(url, ('application/json',))
-    return parser.parse_series_api(index_data)
+    return get_keyword('index')
 
 def get_series_items(series_id, get_meta=False):
     """This function fetches the series detail page for the selected series,

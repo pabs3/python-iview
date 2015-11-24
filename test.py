@@ -138,13 +138,17 @@ class TestParse(TestCase):
         ):
             self.assertEqual(expected, iview.parser.parse_date(input))
     
-    def test_items(self):
+    def test_episodes(self):
         import iview.parser
-        items = iview.parser.parse_series_items([
-            {"b": "Series 1 Episode 1\n"},  # Trim newline from end
-            {"b": "Series 1 Episode 2 \n(Final)"},  # Collapse spaces
-        ])
-        self.assertTrue(all("\n" not in i["title"] for i in items))
+        items = iview.parser.parse_json_feed(br'''['''
+            br'''{"seriesId": "100","seriesTitle": "Dummy Title",'''
+                br'''"title": "Series 1 Episode 1\n",'''  # Trailing newline
+                br'''"videoAsset": "/playback/_definst_/"},'''
+            br'''{"seriesId": "100","seriesTitle": "Dummy Title",'''
+                br'''"title": "Series 1 Episode 2 \n(Final)",'''  # Space NL
+                br'''"videoAsset": "/playback/_definst_/"}]''')
+        for i in items:
+            self.assertNotIn("\n", i["title"])
 
 import iview.utils
 import urllib.request
@@ -244,9 +248,10 @@ class TestLoopbackHttp(TestPersistentHttp):
             "Server handle() retried for POST")
 
 class TestMockHttp(TestPersistentHttp):
-    def run(self, *pos, **kw):
-        with substattr(iview.utils.http.client, self.HTTPConnection):
-            return TestPersistentHttp.run(self, *pos, **kw)
+    def setUp(self):
+        super().setUp()
+        self.connection.conn_classes = dict(self.connection.conn_classes)
+        self.connection.conn_classes["mock"] = self.HTTPConnection
 
 class TestHttpSocket(TestMockHttp):
     class HTTPConnection(http.client.HTTPConnection):
@@ -276,12 +281,12 @@ class TestHttpSocket(TestMockHttp):
     
     def test_reuse(self):
         """Test existing connection is reused"""
-        with self.session.open("http://localhost/one") as response:
+        with self.session.open("mock://localhost/one") as response:
             self.assertEqual(b"First body\r\n", response.read())
         sock = self.connection._connection.sock
         self.assertTrue(sock.reader, "Disconnected after first request")
         
-        with self.session.open("http://localhost/two") as response:
+        with self.session.open("mock://localhost/two") as response:
             self.assertEqual(b"Second body\r\n", response.read())
         self.assertIs(sock, self.connection._connection.sock,
             "Socket connection changed")
@@ -289,21 +294,21 @@ class TestHttpSocket(TestMockHttp):
     
     def test_new_host(self):
         """Test connecting to second host"""
-        with self.session.open("http://localhost/one") as response:
+        with self.session.open("mock://localhost/one") as response:
             self.assertEqual(b"First body\r\n", response.read())
         sock1 = self.connection._connection.sock
         self.assertTrue(sock1.reader, "Disconnected after first request")
         
-        with self.session.open("http://otherhost/two") as response:
+        with self.session.open("mock://otherhost/two") as response:
             self.assertEqual(b"First body\r\n", response.read())
         sock2 = self.connection._connection.sock
         self.assertIsNot(sock1, sock2, "Expected new socket connection")
         self.assertTrue(sock2.reader, "Disconnected after second request")
     
     def test_response(self):
-        with self.session.open("http://localhost/#fragment") as response:
+        with self.session.open("mock://localhost/#fragment") as response:
             pass
-        self.assertEqual("http://localhost/", response.geturl())
+        self.assertEqual("mock://localhost/", response.geturl())
 
 class TestHttpEstablishError(TestMockHttp):
     """Connection establishment errors should not trigger a retry"""
@@ -319,7 +324,7 @@ class TestHttpEstablishError(TestMockHttp):
         exception = EnvironmentError(ECONNREFUSED, "Mock connection refusal")
         self.HTTPConnection.connect_exception = exception
         try:
-            self.session.open("http://dummy")
+            self.session.open("mock://dummy")
         except http.client.HTTPException:
             raise
         except EnvironmentError as err:
