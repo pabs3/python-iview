@@ -3,18 +3,25 @@
 
 [![Join the chat at https://gitter.im/sramsay64/python-iview](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sramsay64/python-iview?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Why the fork
-------------
+Legal
+=====
 
-This fork will only work on front-ends. Windows users don't have a GUI so the average windows user can't use this. The CLI still works in windows so all they need is a better front-end. Also there is lots of unused meta-data (such as expiry date, rating, category, thumbnails etc.) accessible from the library but not the front-end. I would also like to make a cron runnable version that will download any new episodes of selected shows.
+I am not a lawyer, This is not legal advice, This is merely a simplification of some information, Contact a lawyer for legal advice.  
 
-New versions
-------------
+This project is a community owned and run project. The copyright is owned by everyone and the [GPL](https://raw.githubusercontent.com/sramsay64/python-iview/master/LICENSE) license legally means that everybody is entitled to use and share this software freely and without any restriction as long as it isn't sold and you tell people that it is under a [GPL](https://raw.githubusercontent.com/sramsay64/python-iview/master/LICENSE) license (a few other mirror de tales can be read [here](https://raw.githubusercontent.com/sramsay64/python-iview/master/LICENSE)). **However** this _only_ applies to the software itself, **not** anything that you download _using_ the software. Python-iView is to iView what a [VCR](https://en.wikipedia.org/wiki/Videocassette_recorder) (or [PVR](https://en.wikipedia.org/wiki/Digital_video_recorder)) is to live TV. Make sure that you only use this program in accordance with the law.
 
-the planed front-ends are be:
+Quick start guide
+=================
 
-* iview-tk: A cross platform GUI written with the Tkinter library
-* iview-ng: A new CLI
+1. Download and install Python from [here](https://www.python.org/ftp/python/3.5.0/python-3.5.0.exe)
+2. Download and extract [this zip file](https://github.com/sramsay64/python-iview/archive/master.zip) ([help](http://www.wikihow.com/Extract-Files))
+3. Double click on `iview-tk.py`
+4. Select a program from the left pane
+5. Select an episode from the middle pane
+6. Click download button and the right pane will show you the progress of the download
+7. Go to the iView folder inside your videos folder
+
+Email scott.ramsay64@gmail.com for help.
 
 Licence
 =======
